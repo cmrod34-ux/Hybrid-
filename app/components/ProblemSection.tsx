@@ -63,7 +63,7 @@ export default function ProblemSection() {
       <div className="max-w-6xl mx-auto">
 
         {/* Section label */}
-        <p className="text-red-400 text-xs font-semibold uppercase tracking-widest mb-4 text-center">{SECTION_LABEL}</p>
+        <p className="text-[#39ff14] text-xs font-semibold uppercase tracking-widest mb-4 text-center">{SECTION_LABEL}</p>
 
         {/* Title */}
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white text-center leading-tight mb-5">
@@ -79,9 +79,9 @@ export default function ProblemSection() {
           {problems.map((item, i) => (
             <div
               key={i}
-              className="group bg-[#0d1117] border border-white/8 rounded-2xl p-6 hover:border-red-500/20 transition-all duration-300 hover:-translate-y-1"
+              className="group bg-[#0d1117] border border-white/8 rounded-2xl p-6 hover:border-[#39ff14]/20 transition-all duration-300 hover:-translate-y-1"
             >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 mb-4 group-hover:text-red-400 group-hover:bg-red-500/10 transition-all duration-300">
+              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 mb-4 group-hover:text-[#39ff14] group-hover:bg-[#39ff14]/10 transition-all duration-300">
                 {item.icon}
               </div>
               <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-1">{item.app}</p>

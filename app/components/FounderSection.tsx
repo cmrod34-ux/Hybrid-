@@ -15,13 +15,13 @@ export default function FounderSection() {
   return (
     <section className="py-20 px-6 relative overflow-hidden">
       {/* Subtle left glow */}
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-red-600 opacity-[0.03] rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#39ff14] opacity-[0.03] rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-3xl mx-auto relative">
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-8 sm:p-12">
 
           {/* Quote mark */}
-          <div className="text-blue-500/30 text-7xl font-serif leading-none mb-4 select-none">"</div>
+          <div className="text-[#00e5ff]/30 text-7xl font-serif leading-none mb-4 select-none">"</div>
 
           {/* Copy */}
           <div className="space-y-4 mb-8">
@@ -42,7 +42,7 @@ export default function FounderSection() {
           {/* Author */}
           <div className="flex items-center gap-3 pt-6 border-t border-white/5">
             {/* Avatar placeholder */}
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-red-500 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00e5ff] to-[#39ff14] flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">H</span>
             </div>
             <div>

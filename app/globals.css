@@ -39,7 +39,7 @@ body {
 
 /* Gradient text utility — blue/red accent palette */
 .gradient-text {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #ef4444 100%);
+  background: linear-gradient(135deg, #00e5ff 0%, #0080ff 50%, #39ff14 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -47,11 +47,11 @@ body {
 
 /* Glow effects */
 .glow-blue {
-  box-shadow: 0 0 40px rgba(59, 130, 246, 0.15), 0 0 80px rgba(59, 130, 246, 0.05);
+  box-shadow: 0 0 40px rgba(0, 229, 255, 0.15), 0 0 80px rgba(0, 229, 255, 0.05);
 }
 
-.glow-red {
-  box-shadow: 0 0 40px rgba(239, 68, 68, 0.15), 0 0 80px rgba(239, 68, 68, 0.05);
+.glow-green {
+  box-shadow: 0 0 40px rgba(57, 255, 20, 0.15), 0 0 80px rgba(57, 255, 20, 0.05);
 }
 
 /* Noise texture overlay */

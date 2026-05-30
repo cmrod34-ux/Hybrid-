@@ -8,11 +8,11 @@ const SECTION_SUB   = "Three components. One system. Zero guesswork.";
 
 const columns = [
   {
-    accent: "#3b82f6",
+    accent: "#00e5ff",
     step: "Input",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="#00e5ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
     title: "Tell Hybrid about you",
@@ -44,12 +44,12 @@ const columns = [
     ],
   },
   {
-    accent: "#ef4444",
+    accent: "#39ff14",
     step: "Output",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <path d="M9 11l3 3L22 4" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M9 11l3 3L22 4" stroke="#39ff14" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="#39ff14" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
     title: "Your complete weekly plan",
@@ -69,7 +69,7 @@ export default function ProductFlowSection() {
       <div className="max-w-6xl mx-auto">
 
         {/* Section label */}
-        <p className="text-blue-400 text-xs font-semibold uppercase tracking-widest mb-4 text-center">{SECTION_LABEL}</p>
+        <p className="text-[#00e5ff] text-xs font-semibold uppercase tracking-widest mb-4 text-center">{SECTION_LABEL}</p>
 
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white text-center leading-tight mb-4">
           {SECTION_TITLE}
