@@ -32,14 +32,14 @@ export default function NutritionSection() {
   return (
     <section className="py-24 px-6 relative overflow-hidden">
       {/* Right glow */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#39ff14] opacity-[0.03] rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#ef4444] opacity-[0.03] rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
           {/* Left — Copy */}
           <div>
-            <p className="text-[#39ff14] text-xs font-semibold uppercase tracking-widest mb-4">Nutrition AI</p>
+            <p className="text-[#ef4444] text-xs font-semibold uppercase tracking-widest mb-4">Nutrition AI</p>
             <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-5">
               Fuel the work.
             </h2>
@@ -51,12 +51,12 @@ export default function NutritionSection() {
             <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 mb-8">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-white font-semibold text-sm">Today — Hard Run Day</p>
-                <p className="text-[#00e5ff] font-bold text-sm">2,840 kcal</p>
+                <p className="text-[#3b82f6] font-bold text-sm">2,840 kcal</p>
               </div>
               <div className="space-y-2.5">
                 {[
-                  { label: "Protein", value: "180g", pct: 65, color: "#00e5ff" },
-                  { label: "Carbs", value: "320g", pct: 88, color: "#39ff14" },
+                  { label: "Protein", value: "180g", pct: 65, color: "#3b82f6" },
+                  { label: "Carbs", value: "320g", pct: 88, color: "#ef4444" },
                   { label: "Fats", value: "75g", pct: 45, color: "#a855f7" },
                 ].map((macro) => (
                   <div key={macro.label} className="flex items-center gap-3">

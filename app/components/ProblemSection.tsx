@@ -1,6 +1,12 @@
 "use client";
 
-// Problem section — "Most fitness apps only solve half the problem."
+// ─── EDIT COPY HERE ────────────────────────────────────────────────────────────
+const SECTION_LABEL = "The Problem";
+const SECTION_TITLE = "Most fitness apps only solve half the problem.";
+const SECTION_SUB   = "They're built for one thing. You train for everything.";
+const CALLOUT_COPY  = "Hybrid athletes need all three working together — training, nutrition, and recovery — not three separate apps that don't talk to each other.";
+// ───────────────────────────────────────────────────────────────────────────────
+
 const problems = [
   {
     icon: (
@@ -9,8 +15,9 @@ const problems = [
       </svg>
     ),
     app: "Running Apps",
-    problem: "Ignore strength training",
-    detail: "They'll help you hit a 5K PR but leave your upper body and power completely underdeveloped.",
+    // Edit problem headline and detail below
+    problem: "Help your 5K, but ignore your strength.",
+    detail: "Your aerobic base improves. Your power, muscle, and structural resilience stay exactly where they were. You run faster until you get injured.",
   },
   {
     icon: (
@@ -23,8 +30,8 @@ const problems = [
       </svg>
     ),
     app: "Lifting Apps",
-    problem: "Ignore endurance",
-    detail: "Optimised for hypertrophy or strength, not for the athlete who also needs to run 10km.",
+    problem: "Build muscle, but ignore your engine.",
+    detail: "Great for hypertrophy or max strength. Completely silent on how your training load affects your cardio, endurance, or race readiness.",
   },
   {
     icon: (
@@ -34,8 +41,8 @@ const problems = [
       </svg>
     ),
     app: "Nutrition Apps",
-    problem: "Static targets, zero context",
-    detail: "They set your calories once. They don't know if today is a 20km long run or a full rest day.",
+    problem: "Give static numbers, but don't understand training load.",
+    detail: "They set your macros once and forget you exist. They don't know if today is a 20km long run, a heavy squat session, or a full rest day.",
   },
   {
     icon: (
@@ -45,8 +52,8 @@ const problems = [
       </svg>
     ),
     app: "Generic Plans",
-    problem: "Built for one discipline",
-    detail: "You're not a pure runner or a pure lifter. Cookie-cutter plans aren't designed for the hybrid athlete.",
+    problem: "Force hybrid athletes into one box.",
+    detail: "You're not a pure runner or a pure lifter. Pre-built plans weren't designed for the athlete who needs strength and endurance to coexist.",
   },
 ];
 
@@ -56,17 +63,15 @@ export default function ProblemSection() {
       <div className="max-w-6xl mx-auto">
 
         {/* Section label */}
-        <p className="text-[#00e5ff] text-xs font-semibold uppercase tracking-widest mb-4 text-center">The Problem</p>
+        <p className="text-red-400 text-xs font-semibold uppercase tracking-widest mb-4 text-center">{SECTION_LABEL}</p>
 
         {/* Title */}
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white text-center leading-tight mb-5">
-          Most fitness apps only solve
-          <br />
-          <span className="text-white/40">half the problem.</span>
+          {SECTION_TITLE}
         </h2>
 
         <p className="text-white/40 text-lg text-center max-w-xl mx-auto mb-16">
-          They're built for one thing. You train for everything.
+          {SECTION_SUB}
         </p>
 
         {/* Problem grid */}
@@ -74,9 +79,9 @@ export default function ProblemSection() {
           {problems.map((item, i) => (
             <div
               key={i}
-              className="group bg-[#0d1117] border border-white/8 rounded-2xl p-6 hover:border-white/15 transition-all duration-300 hover:-translate-y-1"
+              className="group bg-[#0d1117] border border-white/8 rounded-2xl p-6 hover:border-red-500/20 transition-all duration-300 hover:-translate-y-1"
             >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 mb-4 group-hover:text-[#00e5ff] group-hover:bg-[#00e5ff]/10 transition-all duration-300">
+              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 mb-4 group-hover:text-red-400 group-hover:bg-red-500/10 transition-all duration-300">
                 {item.icon}
               </div>
               <p className="text-white/30 text-xs font-semibold uppercase tracking-widest mb-1">{item.app}</p>
@@ -89,9 +94,9 @@ export default function ProblemSection() {
         {/* Bottom callout */}
         <div className="mt-12 bg-gradient-to-r from-[#0d1117] via-[#0f1620] to-[#0d1117] border border-white/8 rounded-2xl p-8 text-center">
           <p className="text-white/60 text-lg">
-            Hybrid athletes need{" "}
+            {CALLOUT_COPY.split("all three working together")[0]}
             <span className="text-white font-semibold">all three working together</span>
-            {" "}— training, nutrition, and recovery — not three separate apps that don't talk to each other.
+            {CALLOUT_COPY.split("all three working together")[1]}
           </p>
         </div>
       </div>

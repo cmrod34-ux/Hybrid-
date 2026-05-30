@@ -26,7 +26,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-[#00e5ff] flex items-center justify-center">
+          <div className="w-7 h-7 rounded-md bg-blue-500 flex items-center justify-center">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M2 7L5.5 3L7 5.5L9 2L12 7L9 10L7 7.5L5.5 9.5L2 7Z" fill="#080a0f" strokeWidth="0"/>
             </svg>
@@ -37,9 +37,9 @@ export default function Navbar() {
         {/* CTA */}
         <button
           onClick={scrollToWaitlist}
-          className="bg-[#00e5ff] text-[#080a0f] font-semibold text-sm px-5 py-2 rounded-full hover:bg-white transition-colors duration-200"
+          className="bg-blue-500 text-white font-semibold text-sm px-5 py-2 rounded-full hover:bg-blue-400 transition-colors duration-200"
         >
-          Join Waitlist
+          Join the Hybrid Waitlist
         </button>
       </div>
     </nav>
