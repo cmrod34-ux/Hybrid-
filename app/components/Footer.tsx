@@ -50,12 +50,20 @@ export default function Footer() {
             </svg>
           </a>
 
-          {/* Contact */}
+          {/* Email */}
           <a
-            href="mailto:hello@hybridapp.co"
+            href="mailto:cmrod34@gmail.com"
             className="text-white/30 hover:text-[#00e5ff] transition-colors duration-200 text-xs font-medium"
           >
-            Contact
+            cmrod34@gmail.com
+          </a>
+
+          {/* Phone */}
+          <a
+            href="tel:+12404060910"
+            className="text-white/30 hover:text-[#00e5ff] transition-colors duration-200 text-xs font-medium"
+          >
+            240-406-0910
           </a>
         </div>
       </div>
