@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
+import { google } from "googleapis";
 
-// ─── Local storage ────────────────────────────────────────────────────────────
-// Emails are saved to waitlist.json at the project root.
-// You can replace this with Supabase, Postgres, etc. before launch.
-
+// ─── Local backup storage ─────────────────────────────────────────────────────
 const DATA_FILE = path.join(process.cwd(), "waitlist.json");
 
 function readEmails(): string[] {
@@ -14,61 +12,82 @@ function readEmails(): string[] {
   return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as string[];
 }
 
-function saveEmail(email: string): boolean {
+function saveEmailLocally(email: string): boolean {
   const emails = readEmails();
-  if (emails.includes(email)) return false; // already on list
+  if (emails.includes(email)) return false;
   emails.push(email);
   fs.writeFileSync(DATA_FILE, JSON.stringify(emails, null, 2));
   return true;
 }
 
-// ─── Email notification ───────────────────────────────────────────────────────
-// Sends you (NOTIFY_EMAIL) a Gmail notification whenever someone joins.
-// Requires GMAIL_USER and GMAIL_APP_PASSWORD in .env.local — see that file
-// for instructions on generating a Gmail App Password.
+// ─── Google Sheets ────────────────────────────────────────────────────────────
+// Appends each signup as a new row: [email, timestamp]
 
-async function sendNotification(signupEmail: string, totalCount: number) {
+async function appendToSheet(email: string) {
+  const { GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID } = process.env;
+
+  if (!GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_SHEET_ID) {
+    console.log("[Waitlist] Google Sheets credentials not set — skipping sheet append");
+    return;
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: GOOGLE_CLIENT_EMAIL,
+      private_key: GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    },
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: GOOGLE_SHEET_ID,
+    range: "Sheet1!A:B",
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [[email, new Date().toLocaleString("en-US", { timeZone: "America/New_York" })]],
+    },
+  });
+
+  console.log(`[Waitlist] Appended to Google Sheet: ${email}`);
+}
+
+// ─── Gmail notification ───────────────────────────────────────────────────────
+
+async function sendNotification(email: string, total: number) {
   const { GMAIL_USER, GMAIL_APP_PASSWORD, NOTIFY_EMAIL } = process.env;
 
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD || GMAIL_APP_PASSWORD === "your_16_char_app_password_here") {
-    // Credentials not configured yet — skip silently, still log to console
-    console.log(`[Waitlist] New signup: ${signupEmail} (total: ${totalCount}) — email notification skipped, credentials not set`);
+    console.log(`[Waitlist] New signup: ${email} — Gmail notification skipped, credentials not set`);
     return;
   }
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
   });
 
   await transporter.sendMail({
     from: `"Hybrid Waitlist" <${GMAIL_USER}>`,
     to: NOTIFY_EMAIL || GMAIL_USER,
-    subject: `🔥 New Hybrid waitlist signup (#${totalCount})`,
+    subject: `🔥 New Hybrid waitlist signup (#${total})`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#080a0f;color:#f0f4ff;border-radius:12px;">
         <h2 style="color:#00e5ff;margin:0 0 8px">New Waitlist Signup</h2>
         <p style="color:#888;font-size:13px;margin:0 0 24px">Someone just joined the Hybrid waitlist</p>
-
-        <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;margin-bottom:24px;">
+        <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;margin-bottom:16px;">
           <p style="margin:0 0 4px;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Email</p>
-          <p style="margin:0;font-size:16px;font-weight:600;color:#f0f4ff;">${signupEmail}</p>
+          <p style="margin:0;font-size:16px;font-weight:600;color:#f0f4ff;">${email}</p>
         </div>
-
         <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;">
           <p style="margin:0 0 4px;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Total signups</p>
-          <p style="margin:0;font-size:24px;font-weight:800;color:#39ff14;">${totalCount}</p>
+          <p style="margin:0;font-size:24px;font-weight:800;color:#39ff14;">${total}</p>
         </div>
-
         <p style="color:#444;font-size:11px;margin:24px 0 0;text-align:center;">Hybrid — Train Strong. Run Fast. Stay Hybrid.</p>
       </div>
     `,
   });
-
-  console.log(`[Waitlist] New signup: ${signupEmail} (total: ${totalCount}) — notification sent to ${NOTIFY_EMAIL}`);
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -81,14 +100,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
 
-  const isNew = saveEmail(email);
-  const totalCount = readEmails().length;
+  const isNew = saveEmailLocally(email);
+  const total = readEmails().length;
 
   if (isNew) {
-    // Fire notification in the background — don't block the response
-    sendNotification(email, totalCount).catch((err) =>
-      console.error("[Waitlist] Notification error:", err)
-    );
+    // Run both in parallel, don't block the response
+    Promise.all([
+      appendToSheet(email).catch((e) => console.error("[Waitlist] Sheet error:", e.message)),
+      sendNotification(email, total).catch((e) => console.error("[Waitlist] Email error:", e.message)),
+    ]);
   }
 
   return NextResponse.json({ success: true });
