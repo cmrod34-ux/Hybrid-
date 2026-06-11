@@ -6,6 +6,7 @@ import ProductFlowSection from "@/app/components/ProductFlowSection";
 import NutritionSection from "@/app/components/NutritionSection";
 import FounderSection from "@/app/components/FounderSection";
 import QuestionnaireSection from "@/app/components/QuestionnaireSection";
+import FeedbackSection from "@/app/components/FeedbackSection";
 import WaitlistSection from "@/app/components/WaitlistSection";
 import Footer from "@/app/components/Footer";
 
@@ -32,6 +33,8 @@ export default function Home() {
       <FounderSection />
       <Divider />
       <QuestionnaireSection />
+      <Divider />
+      <FeedbackSection />
       <Divider />
       <WaitlistSection />
       <Footer />

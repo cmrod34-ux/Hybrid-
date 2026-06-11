@@ -163,10 +163,15 @@ export default function QuestionnaireSection() {
     setEmailError("");
     setSubmitting(true);
     try {
-      await fetch("/api/waitlist", {
+      await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          ...answers,
+          event_name: eventName,
+          event_date: eventDate,
+        }),
       });
     } catch {
       // non-blocking
