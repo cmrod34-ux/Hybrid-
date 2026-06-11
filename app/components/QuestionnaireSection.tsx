@@ -18,8 +18,8 @@ const QUESTIONS = [
   {
     id: "goal",
     label: "Primary Goal",
-    subtitle: "What's the main thing you're training for?",
-    type: "single",
+    subtitle: "What are you training for? Select all that apply.",
+    type: "multi",
     options: [
       { value: "build_muscle", label: "Build Muscle", sub: "" },
       { value: "lose_fat", label: "Lose Fat", sub: "" },
@@ -34,8 +34,8 @@ const QUESTIONS = [
   {
     id: "training_for",
     label: "What are you currently training for?",
-    subtitle: "Select the event or goal closest to you right now.",
-    type: "single",
+    subtitle: "Select everything that applies.",
+    type: "multi",
     options: [
       { value: "hyrox", label: "HYROX", sub: "" },
       { value: "5k", label: "5K", sub: "" },
@@ -100,9 +100,9 @@ const QUESTIONS = [
   },
   {
     id: "struggle",
-    label: "Biggest Struggle",
-    subtitle: "What's the hardest part of training for you right now?",
-    type: "single",
+    label: "Biggest Struggles",
+    subtitle: "What's holding you back? Select all that apply.",
+    type: "multi",
     options: [
       { value: "consistency", label: "Staying Consistent", sub: "" },
       { value: "balance", label: "Balancing Running & Lifting", sub: "" },
@@ -132,7 +132,14 @@ const QUESTIONS = [
   },
 ];
 
-type Answers = Record<string, string>;
+// answers: single = string, multi = string[]
+type Answers = Record<string, string | string[]>;
+
+function toggleMulti(current: string[], value: string): string[] {
+  return current.includes(value)
+    ? current.filter((v) => v !== value)
+    : [...current, value];
+}
 
 export default function QuestionnaireSection() {
   const [step, setStep] = useState(0);
@@ -146,13 +153,27 @@ export default function QuestionnaireSection() {
 
   const total = QUESTIONS.length;
   const current = QUESTIONS[step];
-  const progress = ((step) / total) * 100;
+  const progress = (step / total) * 100;
 
-  const select = (value: string) => {
+  // Single select — auto-advance
+  const selectSingle = (value: string) => {
     setAnswers((a) => ({ ...a, [current.id]: value }));
-    if (current.type !== "race" && current.type !== "email") {
+    if (current.type === "single") {
       setTimeout(() => setStep((s) => s + 1), 220);
     }
+  };
+
+  // Multi select — toggle, no auto-advance
+  const selectMulti = (value: string) => {
+    setAnswers((a) => {
+      const prev = (a[current.id] as string[]) ?? [];
+      return { ...a, [current.id]: toggleMulti(prev, value) };
+    });
+  };
+
+  const canContinueMulti = () => {
+    const val = answers[current.id];
+    return Array.isArray(val) && val.length > 0;
   };
 
   const handleSubmit = async () => {
@@ -162,16 +183,18 @@ export default function QuestionnaireSection() {
     }
     setEmailError("");
     setSubmitting(true);
+
+    // Flatten multi arrays to comma-separated strings for the API
+    const flat: Record<string, string> = {};
+    for (const [k, v] of Object.entries(answers)) {
+      flat[k] = Array.isArray(v) ? v.join(", ") : v;
+    }
+
     try {
       await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          ...answers,
-          event_name: eventName,
-          event_date: eventDate,
-        }),
+        body: JSON.stringify({ email, ...flat, event_name: eventName, event_date: eventDate }),
       });
     } catch {
       // non-blocking
@@ -187,6 +210,10 @@ export default function QuestionnaireSection() {
   };
 
   if (submitted) {
+    const goals = answers.goal
+      ? (Array.isArray(answers.goal) ? answers.goal : [answers.goal])
+      : [];
+
     return (
       <section id="questionnaire" className="py-32 px-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00e5ff]/[0.02] to-transparent pointer-events-none" />
@@ -204,11 +231,11 @@ export default function QuestionnaireSection() {
 
             {/* Summary pills */}
             <div className="flex flex-wrap gap-2 justify-center mb-8">
-              {answers.goal && (
-                <span className="bg-[#00e5ff]/10 border border-[#00e5ff]/20 text-[#00e5ff] text-xs font-semibold px-3 py-1.5 rounded-full">
-                  {goalLabels[answers.goal] ?? answers.goal}
+              {goals.map((g) => (
+                <span key={g} className="bg-[#00e5ff]/10 border border-[#00e5ff]/20 text-[#00e5ff] text-xs font-semibold px-3 py-1.5 rounded-full">
+                  {goalLabels[g] ?? g}
                 </span>
-              )}
+              ))}
               {answers.days && (
                 <span className="bg-white/5 border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 rounded-full">
                   {answers.days} days/week
@@ -221,7 +248,7 @@ export default function QuestionnaireSection() {
               )}
               {answers.nutrition && (
                 <span className="bg-white/5 border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 rounded-full capitalize">
-                  {answers.nutrition.replace("_", " ")}
+                  {(answers.nutrition as string).replace("_", " ")}
                 </span>
               )}
             </div>
@@ -238,6 +265,11 @@ export default function QuestionnaireSection() {
       </section>
     );
   }
+
+  const multiSelected = (value: string): boolean => {
+    const val = answers[current.id];
+    return Array.isArray(val) && val.includes(value);
+  };
 
   return (
     <section id="questionnaire" className="py-32 px-6 relative overflow-hidden">
@@ -282,15 +314,15 @@ export default function QuestionnaireSection() {
             <p className="text-white/40 text-sm mb-7">{current.subtitle}</p>
           )}
 
-          {/* Single select options */}
-          {(current.type === "single" || current.type === "race") && (
+          {/* Single select */}
+          {current.type === "single" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {current.options.map((opt) => {
                 const selected = answers[current.id] === opt.value;
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => select(opt.value)}
+                    onClick={() => selectSingle(opt.value)}
                     className={`group text-left px-5 py-4 rounded-2xl border transition-all duration-200 ${
                       selected
                         ? "bg-[#00e5ff]/10 border-[#00e5ff]/40 shadow-[0_0_20px_rgba(0,229,255,0.1)]"
@@ -301,17 +333,13 @@ export default function QuestionnaireSection() {
                       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
                         selected ? "border-[#00e5ff] bg-[#00e5ff]" : "border-white/20"
                       }`}>
-                        {selected && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#080a0f]" />
-                        )}
+                        {selected && <div className="w-1.5 h-1.5 rounded-full bg-[#080a0f]" />}
                       </div>
                       <div>
                         <p className={`font-semibold text-sm transition-colors duration-200 ${selected ? "text-[#00e5ff]" : "text-white"}`}>
                           {opt.label}
                         </p>
-                        {opt.sub && (
-                          <p className="text-white/35 text-xs mt-0.5">{opt.sub}</p>
-                        )}
+                        {opt.sub && <p className="text-white/35 text-xs mt-0.5">{opt.sub}</p>}
                       </div>
                     </div>
                   </button>
@@ -320,32 +348,120 @@ export default function QuestionnaireSection() {
             </div>
           )}
 
-          {/* Race event inputs */}
-          {current.type === "race" && answers.race === "yes" && (
-            <div className="mt-5 grid sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-white/40 text-xs font-medium uppercase tracking-widest block mb-2">Event Name</label>
-                <input
-                  type="text"
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  placeholder="e.g. HYROX Berlin"
-                  className="w-full bg-white/5 border border-white/10 text-white placeholder-white/25 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00e5ff]/50 transition-all duration-200"
-                />
+          {/* Multi select */}
+          {current.type === "multi" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {current.options.map((opt) => {
+                  const selected = multiSelected(opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => selectMulti(opt.value)}
+                      className={`group text-left px-5 py-4 rounded-2xl border transition-all duration-200 ${
+                        selected
+                          ? "bg-[#39ff14]/10 border-[#39ff14]/40 shadow-[0_0_20px_rgba(57,255,20,0.08)]"
+                          : "bg-white/[0.02] border-white/8 hover:border-white/20 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                          selected ? "border-[#39ff14] bg-[#39ff14]" : "border-white/20"
+                        }`}>
+                          {selected && (
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                              <path d="M1.5 5l2.5 2.5 4.5-5" stroke="#080a0f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className={`font-semibold text-sm transition-colors duration-200 ${selected ? "text-[#39ff14]" : "text-white"}`}>
+                          {opt.label}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <div>
-                <label className="text-white/40 text-xs font-medium uppercase tracking-widest block mb-2">Event Date</label>
-                <input
-                  type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 text-white/60 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00e5ff]/50 transition-all duration-200"
-                />
-              </div>
-            </div>
+              <button
+                onClick={() => canContinueMulti() && setStep((s) => s + 1)}
+                disabled={!canContinueMulti()}
+                className="mt-5 w-full bg-white/5 border border-white/10 text-white font-semibold text-sm py-4 rounded-2xl hover:border-[#39ff14]/40 hover:bg-[#39ff14]/5 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Continue →
+              </button>
+            </>
           )}
 
-          {/* Email input */}
+          {/* Race type */}
+          {current.type === "race" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {current.options.map((opt) => {
+                  const selected = answers[current.id] === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => selectSingle(opt.value)}
+                      className={`group text-left px-5 py-4 rounded-2xl border transition-all duration-200 ${
+                        selected
+                          ? "bg-[#00e5ff]/10 border-[#00e5ff]/40 shadow-[0_0_20px_rgba(0,229,255,0.1)]"
+                          : "bg-white/[0.02] border-white/8 hover:border-white/20 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                          selected ? "border-[#00e5ff] bg-[#00e5ff]" : "border-white/20"
+                        }`}>
+                          {selected && <div className="w-1.5 h-1.5 rounded-full bg-[#080a0f]" />}
+                        </div>
+                        <div>
+                          <p className={`font-semibold text-sm transition-colors duration-200 ${selected ? "text-[#00e5ff]" : "text-white"}`}>
+                            {opt.label}
+                          </p>
+                          {opt.sub && <p className="text-white/35 text-xs mt-0.5">{opt.sub}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {answers.race === "yes" && (
+                <div className="mt-5 grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-white/40 text-xs font-medium uppercase tracking-widest block mb-2">Event Name</label>
+                    <input
+                      type="text"
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
+                      placeholder="e.g. HYROX Berlin"
+                      className="w-full bg-white/5 border border-white/10 text-white placeholder-white/25 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00e5ff]/50 transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs font-medium uppercase tracking-widest block mb-2">Event Date</label>
+                    <input
+                      type="date"
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 text-white/60 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00e5ff]/50 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {answers.race && (
+                <button
+                  onClick={() => setStep((s) => s + 1)}
+                  className="mt-5 w-full bg-white/5 border border-white/10 text-white font-semibold text-sm py-4 rounded-2xl hover:border-[#00e5ff]/40 hover:bg-[#00e5ff]/5 transition-all duration-200"
+                >
+                  Continue →
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Email */}
           {current.type === "email" && (
             <div className="space-y-4">
               <input
@@ -365,16 +481,6 @@ export default function QuestionnaireSection() {
               </button>
               <p className="text-white/25 text-xs text-center">No spam. Early access updates only.</p>
             </div>
-          )}
-
-          {/* Next button for race step */}
-          {current.type === "race" && answers.race && (
-            <button
-              onClick={() => setStep((s) => s + 1)}
-              className="mt-6 w-full bg-white/5 border border-white/10 text-white font-semibold text-sm py-4 rounded-2xl hover:border-[#00e5ff]/40 hover:bg-[#00e5ff]/5 transition-all duration-200"
-            >
-              Continue →
-            </button>
           )}
         </div>
 

@@ -25,10 +25,10 @@ const FEATURE_OPTIONS = [
 const PAY_OPTIONS = ["Yes", "Maybe", "No"];
 
 interface FormState {
-  athlete_type: string;
+  athlete_type: string[];
   current_apps: string;
   frustration: string;
-  wanted_feature: string;
+  wanted_feature: string[];
   wanted_feature_other: string;
   expectations: string;
   website_feedback: string;
@@ -38,10 +38,10 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  athlete_type: "",
+  athlete_type: [],
   current_apps: "",
   frustration: "",
-  wanted_feature: "",
+  wanted_feature: [],
   wanted_feature_other: "",
   expectations: "",
   website_feedback: "",
@@ -55,16 +55,30 @@ function ChipGroup({
   value,
   onChange,
   accent = "cyan",
+  multi = false,
 }: {
   options: string[];
-  value: string;
-  onChange: (v: string) => void;
+  value: string | string[];
+  onChange: (v: string | string[]) => void;
   accent?: "cyan" | "green";
+  multi?: boolean;
 }) {
   const activeColor =
     accent === "cyan"
       ? "border-[#00e5ff] bg-[#00e5ff]/10 text-[#00e5ff]"
       : "border-[#39ff14] bg-[#39ff14]/10 text-[#39ff14]";
+
+  const isSelected = (opt: string) =>
+    multi ? (value as string[]).includes(opt) : value === opt;
+
+  const handleClick = (opt: string) => {
+    if (!multi) {
+      onChange(opt);
+    } else {
+      const arr = value as string[];
+      onChange(arr.includes(opt) ? arr.filter((v) => v !== opt) : [...arr, opt]);
+    }
+  };
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -72,9 +86,9 @@ function ChipGroup({
         <button
           key={opt}
           type="button"
-          onClick={() => onChange(opt)}
+          onClick={() => handleClick(opt)}
           className={`px-4 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${
-            value === opt
+            isSelected(opt)
               ? activeColor
               : "border-white/10 text-white/50 hover:border-white/25 hover:text-white/80"
           }`}
@@ -105,7 +119,7 @@ export default function FeedbackSection() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
-  const set = (key: keyof FormState) => (val: string) =>
+  const set = (key: keyof FormState) => (val: string | string[]) =>
     setForm((f) => ({ ...f, [key]: val }));
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,7 +129,11 @@ export default function FeedbackSection() {
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          athlete_type: form.athlete_type.join(", "),
+          wanted_feature: form.wanted_feature.join(", "),
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       setStatus("success");
@@ -173,7 +191,7 @@ export default function FeedbackSection() {
           {/* Q1 — Athlete type */}
           <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-6 transition-all duration-200 hover:border-white/12">
             <FieldLabel label="What best describes you?" />
-            <ChipGroup options={ATHLETE_TYPES} value={form.athlete_type} onChange={set("athlete_type")} />
+            <ChipGroup options={ATHLETE_TYPES} value={form.athlete_type} onChange={set("athlete_type")} multi />
           </div>
 
           {/* Q2 — Current apps */}
@@ -208,8 +226,9 @@ export default function FeedbackSection() {
               value={form.wanted_feature}
               onChange={set("wanted_feature")}
               accent="green"
+              multi
             />
-            {form.wanted_feature === "Other" && (
+            {form.wanted_feature.includes("Other") && (
               <input
                 type="text"
                 value={form.wanted_feature_other}
