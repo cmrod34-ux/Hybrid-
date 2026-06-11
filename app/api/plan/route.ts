@@ -50,7 +50,7 @@ async function appendPlanToSheet(entry: PlanEntry) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
-    range: "Plans!A:N",
+    range: "plans !A:N",
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [[

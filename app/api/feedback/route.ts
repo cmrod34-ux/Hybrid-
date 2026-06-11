@@ -48,7 +48,7 @@ async function appendFeedbackToSheet(entry: FeedbackEntry) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
-    range: "Feedback!A:M",
+    range: "feedback !A:M",
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [[

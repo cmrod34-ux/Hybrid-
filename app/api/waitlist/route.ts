@@ -43,7 +43,7 @@ async function appendToSheet(email: string) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
-    range: "Sheet1!A:B",
+    range: "waitlist!A:B",
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [[email, new Date().toLocaleString("en-US", { timeZone: "America/New_York" })]],
