@@ -21,15 +21,16 @@ interface FeedbackEntry {
   email: string;
 }
 
-function readFeedback(): FeedbackEntry[] {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as FeedbackEntry[];
-}
-
 function saveFeedbackLocally(entry: FeedbackEntry): void {
-  const entries = readFeedback();
-  entries.push(entry);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(entries, null, 2));
+  try {
+    const entries: FeedbackEntry[] = fs.existsSync(DATA_FILE)
+      ? (JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as FeedbackEntry[])
+      : [];
+    entries.push(entry);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(entries, null, 2));
+  } catch {
+    // read-only filesystem in production — skip local save
+  }
 }
 
 async function appendFeedbackToSheet(entry: FeedbackEntry) {

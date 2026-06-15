@@ -7,17 +7,19 @@ import { google } from "googleapis";
 // ─── Local backup storage ─────────────────────────────────────────────────────
 const DATA_FILE = path.join(process.cwd(), "waitlist.json");
 
-function readEmails(): string[] {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as string[];
-}
-
 function saveEmailLocally(email: string): boolean {
-  const emails = readEmails();
-  if (emails.includes(email)) return false;
-  emails.push(email);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(emails, null, 2));
-  return true;
+  try {
+    const emails: string[] = fs.existsSync(DATA_FILE)
+      ? (JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as string[])
+      : [];
+    if (emails.includes(email)) return false;
+    emails.push(email);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(emails, null, 2));
+    return true;
+  } catch {
+    // read-only filesystem in production — skip local save
+    return true;
+  }
 }
 
 // ─── Google Sheets ────────────────────────────────────────────────────────────

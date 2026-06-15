@@ -23,15 +23,16 @@ interface PlanEntry {
   event_date: string;
 }
 
-function readPlans(): PlanEntry[] {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as PlanEntry[];
-}
-
 function savePlanLocally(entry: PlanEntry): void {
-  const entries = readPlans();
-  entries.push(entry);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(entries, null, 2));
+  try {
+    const entries: PlanEntry[] = fs.existsSync(DATA_FILE)
+      ? (JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as PlanEntry[])
+      : [];
+    entries.push(entry);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(entries, null, 2));
+  } catch {
+    // read-only filesystem in production — skip local save
+  }
 }
 
 async function appendPlanToSheet(entry: PlanEntry) {
@@ -114,14 +115,18 @@ async function sendPlanNotification(entry: PlanEntry, total: number) {
   });
 }
 
-// Also add to the main waitlist so email is captured
-async function appendToWaitlist(email: string) {
-  const waitlistFile = path.join(process.cwd(), "waitlist.json");
-  if (!fs.existsSync(waitlistFile)) fs.writeFileSync(waitlistFile, "[]");
-  const emails: string[] = JSON.parse(fs.readFileSync(waitlistFile, "utf-8"));
-  if (!emails.includes(email)) {
-    emails.push(email);
-    fs.writeFileSync(waitlistFile, JSON.stringify(emails, null, 2));
+function appendToWaitlist(email: string) {
+  try {
+    const waitlistFile = path.join(process.cwd(), "waitlist.json");
+    const emails: string[] = fs.existsSync(waitlistFile)
+      ? (JSON.parse(fs.readFileSync(waitlistFile, "utf-8")) as string[])
+      : [];
+    if (!emails.includes(email)) {
+      emails.push(email);
+      fs.writeFileSync(waitlistFile, JSON.stringify(emails, null, 2));
+    }
+  } catch {
+    // read-only filesystem in production — skip
   }
 }
 
