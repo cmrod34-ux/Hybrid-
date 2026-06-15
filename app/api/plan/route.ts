@@ -73,7 +73,7 @@ async function appendPlanToSheet(entry: PlanEntry) {
   });
 }
 
-async function sendPlanNotification(entry: PlanEntry, total: number) {
+async function sendPlanNotification(entry: PlanEntry) {
   const { GMAIL_USER, GMAIL_APP_PASSWORD, NOTIFY_EMAIL } = process.env;
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD || GMAIL_APP_PASSWORD === "your_16_char_app_password_here") return;
 
@@ -93,11 +93,11 @@ async function sendPlanNotification(entry: PlanEntry, total: number) {
   await transporter.sendMail({
     from: `"Hybrid Plan Builder" <${GMAIL_USER}>`,
     to: NOTIFY_EMAIL || GMAIL_USER,
-    subject: `🏋️ New plan submission from ${entry.email} (#${total})`,
+    subject: `🏋️ New plan submission from ${entry.email} · ${entry.timestamp}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#080a0f;color:#f0f4ff;border-radius:12px;">
         <h2 style="color:#00e5ff;margin:0 0 4px">New Plan Builder Submission</h2>
-        <p style="color:#888;font-size:13px;margin:0 0 24px">Submission #${total} · ${entry.timestamp}</p>
+        <p style="color:#888;font-size:13px;margin:0 0 24px">${entry.timestamp}</p>
         ${row("Email", entry.email)}
         ${row("Experience", entry.experience)}
         ${row("Goal", entry.goal)}
@@ -158,11 +158,9 @@ export async function POST(req: NextRequest) {
 
   savePlanLocally(entry);
   appendToWaitlist(email);
-  const total = readPlans().length;
-
   Promise.all([
     appendPlanToSheet(entry).catch((e) => console.error("[Plan] Sheet error:", e.message)),
-    sendPlanNotification(entry, total).catch((e) => console.error("[Plan] Email error:", e.message)),
+    sendPlanNotification(entry).catch((e) => console.error("[Plan] Email error:", e.message)),
   ]);
 
   return NextResponse.json({ success: true });

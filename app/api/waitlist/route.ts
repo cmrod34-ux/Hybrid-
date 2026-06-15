@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   }
 
   const isNew = saveEmailLocally(email);
-  const total = readEmails().length;
+  const total = 0; // local file not available in production
 
   if (isNew) {
     // Run both in parallel, don't block the response

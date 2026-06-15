@@ -69,7 +69,7 @@ async function appendFeedbackToSheet(entry: FeedbackEntry) {
   });
 }
 
-async function sendFeedbackNotification(entry: FeedbackEntry, total: number) {
+async function sendFeedbackNotification(entry: FeedbackEntry) {
   const { GMAIL_USER, GMAIL_APP_PASSWORD, NOTIFY_EMAIL } = process.env;
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD || GMAIL_APP_PASSWORD === "your_16_char_app_password_here") return;
 
@@ -89,11 +89,11 @@ async function sendFeedbackNotification(entry: FeedbackEntry, total: number) {
   await transporter.sendMail({
     from: `"Hybrid Feedback" <${GMAIL_USER}>`,
     to: NOTIFY_EMAIL || GMAIL_USER,
-    subject: `💬 New Hybrid feedback submission (#${total})`,
+    subject: `💬 New Hybrid feedback submission · ${entry.timestamp}`,
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#080a0f;color:#f0f4ff;border-radius:12px;">
         <h2 style="color:#39ff14;margin:0 0 4px">New Feedback Submission</h2>
-        <p style="color:#888;font-size:13px;margin:0 0 24px">Response #${total} · ${entry.timestamp}</p>
+        <p style="color:#888;font-size:13px;margin:0 0 24px">${entry.timestamp}</p>
         ${field("Athlete Type", entry.athlete_type)}
         ${field("Current Apps", entry.current_apps)}
         ${field("Biggest Frustration", entry.frustration)}
@@ -129,11 +129,10 @@ export async function POST(req: NextRequest) {
   };
 
   saveFeedbackLocally(entry);
-  const total = readFeedback().length;
 
   Promise.all([
     appendFeedbackToSheet(entry).catch((e) => console.error("[Feedback] Sheet error:", e.message)),
-    sendFeedbackNotification(entry, total).catch((e) => console.error("[Feedback] Email error:", e.message)),
+    sendFeedbackNotification(entry).catch((e) => console.error("[Feedback] Email error:", e.message)),
   ]);
 
   return NextResponse.json({ success: true });
