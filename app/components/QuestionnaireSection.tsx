@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SuccessModal from "@/app/components/SuccessModal";
 
 const QUESTIONS = [
   {
@@ -150,6 +151,7 @@ export default function QuestionnaireSection() {
   const [emailError, setEmailError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const total = QUESTIONS.length;
   const current = QUESTIONS[step];
@@ -182,6 +184,7 @@ export default function QuestionnaireSection() {
       return;
     }
     setEmailError("");
+    setSubmitError("");
     setSubmitting(true);
 
     // Flatten multi arrays to comma-separated strings for the API
@@ -191,80 +194,27 @@ export default function QuestionnaireSection() {
     }
 
     try {
-      await fetch("/api/plan", {
+      const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, ...flat, event_name: eventName, event_date: eventDate }),
       });
+      if (!res.ok) throw new Error("Failed");
+      setSubmitted(true);
     } catch {
-      // non-blocking
+      setSubmitError("Something went wrong. Please try again.");
     }
     setSubmitting(false);
-    setSubmitted(true);
   };
 
-  const goalLabels: Record<string, string> = {
-    build_muscle: "Build Muscle", lose_fat: "Lose Fat", endurance: "Improve Endurance",
-    strength: "Increase Strength", hyrox: "Train for HYROX", marathon: "Train for a Marathon",
-    overall: "Improve Overall Fitness", balance: "Balance Strength & Running",
+  const closeModal = () => {
+    setSubmitted(false);
+    setStep(0);
+    setAnswers({});
+    setEventName("");
+    setEventDate("");
+    setEmail("");
   };
-
-  if (submitted) {
-    const goals = answers.goal
-      ? (Array.isArray(answers.goal) ? answers.goal : [answers.goal])
-      : [];
-
-    return (
-      <section id="questionnaire" className="py-32 px-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00e5ff]/[0.02] to-transparent pointer-events-none" />
-        <div className="max-w-2xl mx-auto relative text-center">
-          <div className="bg-[#0d1117] border border-[#00e5ff]/20 rounded-3xl p-10 shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-[#00e5ff]/10 border border-[#00e5ff]/30 flex items-center justify-center mx-auto mb-6">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-black text-white mb-3">Your plan is ready to build.</h3>
-            <p className="text-white/50 text-base leading-relaxed mb-8">
-              Based on your answers, Hybrid will build a personalized training, nutrition, and recovery plan designed around your goals.
-            </p>
-
-            {/* Summary pills */}
-            <div className="flex flex-wrap gap-2 justify-center mb-8">
-              {goals.map((g) => (
-                <span key={g} className="bg-[#00e5ff]/10 border border-[#00e5ff]/20 text-[#00e5ff] text-xs font-semibold px-3 py-1.5 rounded-full">
-                  {goalLabels[g] ?? g}
-                </span>
-              ))}
-              {answers.days && (
-                <span className="bg-white/5 border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 rounded-full">
-                  {answers.days} days/week
-                </span>
-              )}
-              {answers.experience && (
-                <span className="bg-[#39ff14]/10 border border-[#39ff14]/20 text-[#39ff14] text-xs font-semibold px-3 py-1.5 rounded-full capitalize">
-                  {answers.experience}
-                </span>
-              )}
-              {answers.nutrition && (
-                <span className="bg-white/5 border border-white/10 text-white/60 text-xs font-semibold px-3 py-1.5 rounded-full capitalize">
-                  {(answers.nutrition as string).replace("_", " ")}
-                </span>
-              )}
-            </div>
-
-            <a
-              href="#waitlist"
-              className="inline-block bg-[#00e5ff] text-[#080a0f] font-bold text-sm px-10 py-4 rounded-full hover:bg-white transition-all duration-200 shadow-[0_0_30px_rgba(0,229,255,0.25)]"
-            >
-              Join the Waitlist
-            </a>
-            <p className="text-white/25 text-xs mt-4">We'll notify you the moment early access opens.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   const multiSelected = (value: string): boolean => {
     const val = answers[current.id];
@@ -472,12 +422,13 @@ export default function QuestionnaireSection() {
                 className="w-full bg-white/5 border border-white/10 text-white placeholder-white/25 rounded-2xl px-6 py-4 text-base outline-none focus:border-[#00e5ff]/50 transition-all duration-200"
               />
               {emailError && <p className="text-red-400 text-sm">{emailError}</p>}
+              {submitError && <p className="text-red-400 text-sm">{submitError}</p>}
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="w-full bg-[#00e5ff] text-[#080a0f] font-bold text-sm py-4 rounded-2xl hover:bg-white transition-all duration-200 shadow-[0_0_30px_rgba(0,229,255,0.25)] disabled:opacity-60"
+                className="w-full bg-[#00e5ff] text-[#080a0f] font-bold text-sm py-4 rounded-2xl hover:bg-white transition-all duration-200 shadow-[0_0_30px_rgba(0,229,255,0.25)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {submitting ? "Building your plan..." : "Build My Hybrid Plan"}
+                {submitting ? "Submitting..." : "Build My Hybrid Plan"}
               </button>
               <p className="text-white/25 text-xs text-center">No spam. Early access updates only.</p>
             </div>
@@ -497,6 +448,16 @@ export default function QuestionnaireSection() {
           </button>
         )}
       </div>
+
+      {submitted && (
+        <SuccessModal
+          accent="cyan"
+          title="Your Hybrid profile has been received."
+          message="Thanks for sharing your goals. Every submission helps us build smarter training, nutrition, and recovery tools for athletes like you. We'll use your answers to shape the first version of Hybrid."
+          smallText="Early access updates will be sent to your email if provided."
+          onClose={closeModal}
+        />
+      )}
     </section>
   );
 }

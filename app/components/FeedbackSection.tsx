@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SuccessModal from "@/app/components/SuccessModal";
 
 const ATHLETE_TYPES = [
   "Runner",
@@ -137,31 +138,13 @@ export default function FeedbackSection() {
       });
       if (!res.ok) throw new Error("Failed");
       setStatus("success");
+      setForm(EMPTY);
     } catch {
       setStatus("error");
     }
   };
 
-  if (status === "success") {
-    return (
-      <section className="py-32 px-6 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#39ff14] opacity-[0.04] rounded-full blur-3xl pointer-events-none" />
-        <div className="max-w-2xl mx-auto text-center relative">
-          <div className="bg-[#0d1117] border border-[#39ff14]/20 rounded-2xl p-12">
-            <div className="w-16 h-16 rounded-full bg-[#39ff14]/10 border border-[#39ff14]/20 flex items-center justify-center mx-auto mb-6">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M5 14l7 7L23 7" stroke="#39ff14" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <h3 className="text-white font-black text-2xl mb-3">Thanks for helping build Hybrid!</h3>
-            <p className="text-white/50 text-base leading-relaxed">
-              Your feedback directly influences what we build next. We read every single response.
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const closeModal = () => setStatus("idle");
 
   return (
     <section className="py-32 px-6 relative overflow-hidden">
@@ -301,7 +284,7 @@ export default function FeedbackSection() {
               disabled={status === "loading"}
               className="w-full sm:w-auto bg-[#39ff14] text-[#080a0f] font-bold text-base px-10 py-4 rounded-full hover:bg-white transition-all duration-200 shadow-[0_0_30px_rgba(57,255,20,0.25)] hover:shadow-[0_0_50px_rgba(57,255,20,0.4)] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {status === "loading" ? "Sending..." : "Send Feedback"}
+              {status === "loading" ? "Submitting..." : "Send Feedback"}
             </button>
             {status === "error" && (
               <p className="text-red-400 text-sm mt-3">Something went wrong. Please try again.</p>
@@ -309,6 +292,16 @@ export default function FeedbackSection() {
           </div>
         </form>
       </div>
+
+      {status === "success" && (
+        <SuccessModal
+          accent="green"
+          title="Thank you for helping build Hybrid."
+          message="Your feedback directly helps us decide what to build next. Every response brings Hybrid one step closer to becoming the app hybrid athletes actually need."
+          smallText="We appreciate honest feedback, feature ideas, and anything you think could make Hybrid better."
+          onClose={closeModal}
+        />
+      )}
     </section>
   );
 }
