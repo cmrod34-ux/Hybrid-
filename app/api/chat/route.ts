@@ -34,13 +34,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "AI not configured" }, { status: 500 });
   }
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5",
-    max_tokens: 300,
-    system: SYSTEM_PROMPT,
-    messages: messages.slice(-10), // keep last 10 messages for context
-  });
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 300,
+      system: SYSTEM_PROMPT,
+      messages: messages.slice(-10),
+    });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  return NextResponse.json({ reply: text });
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    return NextResponse.json({ reply: text });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[Chat] Claude API error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
