@@ -35,12 +35,15 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const apiMessages = messages.slice(-10);
+  console.log("[Chat] Sending messages:", JSON.stringify(apiMessages));
+
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
       system: SYSTEM_PROMPT,
-      messages: messages.slice(-10),
+      messages: apiMessages,
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
