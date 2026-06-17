@@ -42,7 +42,7 @@ export default function ChatSection() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next.slice(1) }),
       });
       const data = await res.json();
       setMessages([...next, { role: "assistant", content: data.reply || "Something went wrong. Try again." }]);
