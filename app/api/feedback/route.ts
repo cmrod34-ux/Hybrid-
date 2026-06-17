@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 
   saveFeedbackLocally(entry);
 
-  Promise.all([
+  await Promise.all([
     appendFeedbackToSheet(entry).catch((e) => console.error("[Feedback] Sheet error:", e.message)),
     sendFeedbackNotification(entry).catch((e) => console.error("[Feedback] Email error:", e.message)),
   ]);

@@ -106,8 +106,7 @@ export async function POST(req: NextRequest) {
   const total = 0; // local file not available in production
 
   if (isNew) {
-    // Run both in parallel, don't block the response
-    Promise.all([
+    await Promise.all([
       appendToSheet(email).catch((e) => console.error("[Waitlist] Sheet error:", e.message)),
       sendNotification(email, total).catch((e) => console.error("[Waitlist] Email error:", e.message)),
     ]);

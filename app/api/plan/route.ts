@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
 
   savePlanLocally(entry);
   appendToWaitlist(email);
-  Promise.all([
+  await Promise.all([
     appendPlanToSheet(entry).catch((e) => console.error("[Plan] Sheet error:", e.message)),
     sendPlanNotification(entry).catch((e) => console.error("[Plan] Email error:", e.message)),
   ]);
