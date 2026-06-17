@@ -121,20 +121,18 @@ export default function ChatSection() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Starter questions */}
-          {messages.length === 1 && (
-            <div className="px-6 pb-4 flex flex-wrap gap-2">
-              {STARTERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="text-xs text-white/50 border border-white/10 rounded-full px-3 py-1.5 hover:border-[#00e5ff]/30 hover:text-white/80 transition-all duration-200"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Starter questions — always in DOM to avoid layout shift */}
+          <div className={`px-6 pb-4 flex flex-wrap gap-2 transition-all duration-200 ${messages.length === 1 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none h-0 pb-0 overflow-hidden"}`}>
+            {STARTERS.map((s) => (
+              <button
+                key={s}
+                onClick={() => send(s)}
+                className="text-xs text-white/50 border border-white/10 rounded-full px-3 py-1.5 hover:border-[#00e5ff]/30 hover:text-white/80 transition-all duration-200"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
 
           {/* Input */}
           <div className="border-t border-white/8 p-4 flex gap-3">
