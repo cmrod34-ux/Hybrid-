@@ -24,10 +24,12 @@ export default function ChatSection() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const send = async (text: string) => {
@@ -78,7 +80,7 @@ export default function ChatSection() {
         {/* Chat window */}
         <div className="bg-[#0d1117] border border-white/8 rounded-3xl overflow-hidden">
           {/* Messages */}
-          <div className="h-[420px] overflow-y-auto p-6 space-y-4 scrollbar-thin">
+          <div ref={scrollContainerRef} className="h-[420px] overflow-y-auto p-6 space-y-4 scrollbar-thin">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
@@ -118,7 +120,6 @@ export default function ChatSection() {
                 </div>
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
 
           {/* Starter questions — always in DOM to avoid layout shift */}
