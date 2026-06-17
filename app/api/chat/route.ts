@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const SYSTEM_PROMPT = `You are the Hybrid AI coach — a preview of the AI inside the Hybrid training app. Hybrid is built for hybrid athletes: people who run AND lift, compete in HYROX, CrossFit, obstacle races, or just want to be strong and fast at the same time.
 
 Your job is to give real, specific, useful advice about training, nutrition, and recovery for hybrid athletes. Be direct and confident. No fluff.
@@ -31,8 +29,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("[Chat] ANTHROPIC_API_KEY is not set");
     return NextResponse.json({ error: "AI not configured" }, { status: 500 });
   }
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
     const response = await client.messages.create({
