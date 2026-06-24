@@ -65,13 +65,17 @@ ${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
+      max_tokens: 2500,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
 
     let text = response.content[0].type === "text" ? response.content[0].text : "";
     text = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    // Extract the JSON object even if the model adds surrounding prose
+    const first = text.indexOf("{");
+    const last = text.lastIndexOf("}");
+    if (first !== -1 && last !== -1) text = text.slice(first, last + 1);
     const plan = JSON.parse(text);
     return NextResponse.json({ plan }, { headers: corsHeaders });
   } catch (e: unknown) {
