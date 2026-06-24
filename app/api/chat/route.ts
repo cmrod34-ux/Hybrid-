@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json(null, { headers: corsHeaders });
+}
+
 const SYSTEM_PROMPT = `You are the Hybrid AI coach — a preview of the AI inside the Hybrid training app. Hybrid is built for hybrid athletes: people who run AND lift, compete in HYROX, CrossFit, obstacle races, or just want to be strong and fast at the same time.
 
 Your job is to give real, specific, useful advice about training, nutrition, and recovery for hybrid athletes. Be direct and confident. No fluff.
@@ -25,12 +35,12 @@ export async function POST(req: NextRequest) {
   const messages = body?.messages;
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    return NextResponse.json({ error: "Invalid messages" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid messages" }, { status: 400, headers: corsHeaders });
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("[Chat] ANTHROPIC_API_KEY is not set");
-    return NextResponse.json({ error: "AI not configured" }, { status: 500 });
+    return NextResponse.json({ error: "AI not configured" }, { status: 500, headers: corsHeaders });
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -47,10 +57,10 @@ export async function POST(req: NextRequest) {
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
-    return NextResponse.json({ reply: text });
+    return NextResponse.json({ reply: text }, { headers: corsHeaders });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[Chat] Claude API error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders });
   }
 }
