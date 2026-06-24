@@ -70,7 +70,8 @@ ${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
       messages: [{ role: "user", content: userPrompt }],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    let text = response.content[0].type === "text" ? response.content[0].text : "";
+    text = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const plan = JSON.parse(text);
     return NextResponse.json({ plan }, { headers: corsHeaders });
   } catch (e: unknown) {
