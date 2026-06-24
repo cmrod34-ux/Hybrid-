@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 const SYSTEM_PROMPT = `You are the Hybrid AI coach. Generate a personalized weekly training plan based on the athlete's profile.
 
 Output ONLY valid JSON with this exact structure — no markdown, no explanation, no backticks:
@@ -24,29 +30,35 @@ Rules:
 - Include at least 1 rest or active recovery day
 - Make it specific and actionable, not generic
 - Adjust intensity and volume to their experience level
-- If they have a race/event, periodize toward it`;
+- If they have a race/event, periodize toward it
+- Only schedule training on the days they specified as available — mark other days as rest or recovery`;
+
+export async function OPTIONS() {
+  return NextResponse.json(null, { headers: corsHeaders });
+}
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "AI not configured" }, { status: 500 });
+    return NextResponse.json({ error: "AI not configured" }, { status: 500, headers: corsHeaders });
   }
 
   const body = await req.json().catch(() => null);
   if (!body) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400, headers: corsHeaders });
   }
 
-  const { athlete_type, goal, experience, runs_per_week, lifts_per_week, event_name, event_date, available_time } = body;
-
   const userPrompt = `Generate a weekly training plan for this athlete:
-- Type: ${athlete_type || "Hybrid athlete"}
-- Primary goal: ${goal || "General fitness"}
-- Experience level: ${experience || "Intermediate"}
-- Runs per week they can do: ${runs_per_week || "3"}
-- Lifts per week they can do: ${lifts_per_week || "3"}
-- Available time per session: ${available_time || "60 minutes"}
-${event_name ? `- Upcoming event: ${event_name}` : ""}
-${event_date ? `- Event date: ${event_date}` : ""}`;
+- Type: ${body.athlete_type || "Hybrid athlete"}
+- Goals: ${body.goal || "General fitness"}
+- Experience: ${body.experience || "Intermediate"}
+- Available training days: ${body.training_days || "Monday through Friday"}
+- Training focus: ${body.training_focus || "General"}
+- Available time per session: ${body.available_time || "60 minutes"}
+- Equipment: ${body.equipment || "Full gym"}
+${body.event_name ? `- Upcoming event: ${body.event_name}` : ""}
+${body.event_date ? `- Event date: ${body.event_date}` : ""}
+${body.injuries ? `- Injuries/limitations: ${body.injuries}` : ""}
+${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -60,10 +72,10 @@ ${event_date ? `- Event date: ${event_date}` : ""}`;
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const plan = JSON.parse(text);
-    return NextResponse.json({ plan });
+    return NextResponse.json({ plan }, { headers: corsHeaders });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[GeneratePlan] Error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders });
   }
 }
