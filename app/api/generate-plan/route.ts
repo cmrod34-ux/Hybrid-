@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { verifyUser, rateLimit } from "@/lib/verifyUser";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
 const SYSTEM_PROMPT = `You are the Hybrid AI coach. Generate a personalized weekly training plan based on the athlete's profile.
@@ -40,6 +41,14 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "AI not configured" }, { status: 500, headers: corsHeaders });
+  }
+
+  const auth = await verifyUser(req.headers.get("authorization"));
+  if (!auth.ok) {
+    return NextResponse.json({ error: "Please sign in to generate a plan." }, { status: 401, headers: corsHeaders });
+  }
+  if (!rateLimit(auth.userId ?? req.headers.get("x-forwarded-for") ?? "anon")) {
+    return NextResponse.json({ error: "Too many requests. Please wait a minute and try again." }, { status: 429, headers: corsHeaders });
   }
 
   const body = await req.json().catch(() => null);
