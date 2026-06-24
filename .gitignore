@@ -40,3 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# Local runtime data (contains user PII — never commit)
+feedback.json
+plans.json
+waitlist.json
+
+# Local skills bundle
+.claude/skills/
