@@ -3,25 +3,45 @@
 // Nutrition AI Section
 const useCases = [
   {
-    icon: "⚡",
+    accent: "#00e5ff",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" stroke="#00e5ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
     title: "Cutting while maintaining performance",
     description:
       "Stay in a calorie deficit without cratering your training. Hybrid keeps protein high and times carbs around sessions.",
   },
   {
-    icon: "💪",
+    accent: "#39ff14",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11" stroke="#39ff14" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
     title: "Building muscle without losing endurance",
     description:
       "A strategic surplus that fuels strength gains while keeping your aerobic base intact.",
   },
   {
-    icon: "🏁",
+    accent: "#00e5ff",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M5 21V4m0 0h13l-2.5 4L18 12H5" stroke="#00e5ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
     title: "Race-week fueling",
     description:
       "Carb loading, hydration strategy, and pre-race nutrition plans timed perfectly for your event day.",
   },
   {
-    icon: "🔄",
+    accent: "#a855f7",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
     title: "Recovery meals",
     description:
       "Post-session recommendations based on session type — prioritizing glycogen replenishment after hard runs or protein after heavy lifts.",
@@ -85,7 +105,12 @@ export default function NutritionSection() {
                 key={i}
                 className="group bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex gap-4 hover:border-white/15 transition-all duration-300"
               >
-                <span className="text-2xl">{uc.icon}</span>
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${uc.accent}12` }}
+                >
+                  {uc.icon}
+                </div>
                 <div>
                   <h3 className="text-white font-bold text-sm mb-1">{uc.title}</h3>
                   <p className="text-white/40 text-sm leading-relaxed">{uc.description}</p>
