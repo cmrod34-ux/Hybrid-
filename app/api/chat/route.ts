@@ -30,6 +30,18 @@ Topics you know well:
 
 If someone asks something completely off-topic (politics, coding, etc.), politely redirect them back to training.`;
 
+// Used when the request carries the athlete's plan context (the mobile app's
+// in-app coach) — same expertise, but plan-aware and no marketing tease.
+const IN_APP_PROMPT = `You are the Hybrid AI coach inside the Hybrid training app. The athlete has a structured multi-week plan that Hybrid generated, and their current context is provided below.
+
+Give real, specific, useful advice about training, nutrition, and recovery for hybrid athletes. Be direct and confident. No fluff. Keep responses concise — 3 to 6 sentences max.
+
+Ground answers in their context: reference their actual plan week, phase, today's workout, race countdown, and recent session feedback when relevant. Questions like "why am I doing this workout", "can I move my long run", or "my legs are sore" should be answered against their real plan.
+
+If they want to change their schedule, remind them they can move, swap, shorten, or skip sessions from the workout screen — and that Hybrid will propose plan adjustments they can accept or reject.
+
+If someone asks something completely off-topic (politics, coding, etc.), politely redirect them back to training.`;
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const messages = body?.messages;
@@ -46,13 +58,16 @@ export async function POST(req: NextRequest) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const apiMessages = messages.slice(-10);
-  console.log("[Chat] Sending messages:", JSON.stringify(apiMessages));
+
+  // Optional compact plan-context block from the mobile app (capped, plain text).
+  const context = typeof body?.context === "string" ? body.context.slice(0, 1500) : null;
+  const system = context ? `${IN_APP_PROMPT}\n\nAthlete context:\n${context}` : SYSTEM_PROMPT;
 
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
-      system: SYSTEM_PROMPT,
+      system,
       messages: apiMessages,
     });
 
