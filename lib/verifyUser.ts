@@ -43,17 +43,22 @@ export async function verifyUser(authHeader: string | null): Promise<AuthResult>
  * this to a shared store (e.g. Upstash Redis).
  */
 const hits = new Map<string, number[]>();
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 8;
 
-export function rateLimit(key: string): boolean {
+/** Sliding-window limiter with a configurable budget. Returns false when the
+ *  key has exhausted `max` requests within `windowMs`. */
+export function rateLimitWindow(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) {
+  const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (recent.length >= max) {
     hits.set(key, recent);
     return false;
   }
   recent.push(now);
   hits.set(key, recent);
   return true;
+}
+
+/** Default limiter used by the plan/nutrition endpoints: 8 requests/minute. */
+export function rateLimit(key: string): boolean {
+  return rateLimitWindow(key, 8, 60_000);
 }
