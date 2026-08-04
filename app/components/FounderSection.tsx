@@ -1,7 +1,6 @@
 "use client";
 
 // ─── EDIT COPY HERE ────────────────────────────────────────────────────────────
-const SECTION_LABEL = "Built by a hybrid athlete.";
 
 // Edit the founder story paragraphs below
 const FOUNDER_COPY = `Hybrid started from a simple problem: I wanted to run faster, lift harder, stay lean, and train for HYROX without guessing every week. Most apps only understood one side of training.
@@ -21,7 +20,7 @@ export default function FounderSection() {
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-8 sm:p-12">
 
           {/* Quote mark */}
-          <div className="text-[#00e5ff]/30 text-7xl font-serif leading-none mb-4 select-none">"</div>
+          <div className="text-[#00e5ff]/30 text-7xl font-serif leading-none mb-4 select-none">&ldquo;</div>
 
           {/* Copy */}
           <div className="space-y-4 mb-8">

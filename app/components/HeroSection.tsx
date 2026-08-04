@@ -138,7 +138,7 @@ export default function HeroSection() {
 
             {/* Subheadline */}
             <p className="text-white/45 text-base leading-relaxed mb-6 max-w-md">
-              AI-powered plans that balance your lifting, running, and nutrition in one place — and adjust every week based on how you're actually performing.
+              AI-powered plans that balance your lifting, running, and nutrition in one place — and adjust every week based on how you&apos;re actually performing.
             </p>
 
             {/* Disciplines */}

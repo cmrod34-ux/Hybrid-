@@ -5,7 +5,6 @@ import SuccessModal from "@/app/components/SuccessModal";
 
 // ─── EDIT COPY HERE ────────────────────────────────────────────────────────────
 const BADGE_TEXT    = "Coming soon — join the first wave of athletes testing Hybrid.";
-const HEADLINE      = "Be first to try Hybrid.";
 const SUBHEAD       = "Join athletes already on the waitlist and get early access when we launch.";
 const BTN_LABEL     = "Join the Hybrid Waitlist";
 const COUNTER_TEXT  = "Join the first 100 hybrid athletes.";

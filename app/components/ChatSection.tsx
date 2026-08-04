@@ -73,7 +73,7 @@ export default function ChatSection() {
             <span className="gradient-text">Hybrid AI</span>
           </h2>
           <p className="text-white/45 text-lg max-w-xl mx-auto leading-relaxed">
-            Get a taste of what training with Hybrid's AI actually feels like. Ask anything about your training, nutrition, or race prep.
+            Get a taste of what training with Hybrid&apos;s AI actually feels like. Ask anything about your training, nutrition, or race prep.
           </p>
         </div>
 

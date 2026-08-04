@@ -164,7 +164,7 @@ export default function FeedbackSection() {
             <span className="gradient-text">Hybrid Training</span>
           </h2>
           <p className="text-white/45 text-lg max-w-xl mx-auto leading-relaxed">
-            We're building Hybrid for athletes like you. Tell us what you want, what frustrates you, and what would make you switch from your current apps.
+            We&apos;re building Hybrid for athletes like you. Tell us what you want, what frustrates you, and what would make you switch from your current apps.
           </p>
         </div>
 

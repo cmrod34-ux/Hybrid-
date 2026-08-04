@@ -115,7 +115,6 @@ export function sanitizeChatMessages(raw: unknown): ChatMessage[] | null {
 /** Trim + cap a free-text field from the client (drops control chars). */
 export function capString(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
-  // eslint-disable-next-line no-control-regex
   return v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
 }
 

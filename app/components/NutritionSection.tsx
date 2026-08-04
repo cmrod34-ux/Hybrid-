@@ -64,7 +64,7 @@ export default function NutritionSection() {
               Fuel the work.
             </h2>
             <p className="text-white/50 text-lg leading-relaxed mb-8">
-              Hybrid calculates your exact calorie, protein, carb, and fat targets based on what you're training — and updates them when your training changes.
+              Hybrid calculates your exact calorie, protein, carb, and fat targets based on what you&apos;re training — and updates them when your training changes.
             </p>
 
             {/* Macro bar visual */}
