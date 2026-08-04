@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { verifyUser, rateLimit } from "@/lib/verifyUser";
+import { verifyUser, rateLimit, capString } from "@/lib/verifyUser";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,19 +65,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400, headers: corsHeaders });
   }
 
+  // Every field is length-capped before it reaches the prompt.
+  const f = (v: unknown, max = 200) => capString(v, max);
   const userPrompt = `Generate a daily nutrition plan for this athlete:
-- Goal: ${body.goal || "General fitness"}
-- Body weight: ${body.weight || "Not specified"}
-- Height: ${body.height || "Not specified"}
-- Age: ${body.age || "Not specified"}
-- Gender: ${body.gender || "Not specified"}
-- Activity level: ${body.activity_level || "Moderate"}
-- Training type: ${body.training_type || "Hybrid (running + lifting)"}
-- Meals per day: ${body.meals_per_day || "4"}
-- Dietary restrictions: ${body.dietary_restrictions || "None"}
-- Foods they dislike: ${body.dislikes || "None"}
-- Budget: ${body.budget || "No preference"}
-${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
+- Goal: ${f(body.goal) || "General fitness"}
+- Body weight: ${f(body.weight, 40) || "Not specified"}
+- Height: ${f(body.height, 40) || "Not specified"}
+- Age: ${f(body.age, 20) || "Not specified"}
+- Gender: ${f(body.gender, 40) || "Not specified"}
+- Activity level: ${f(body.activity_level) || "Moderate"}
+- Training type: ${f(body.training_type) || "Hybrid (running + lifting)"}
+- Meals per day: ${f(body.meals_per_day, 10) || "4"}
+- Dietary restrictions: ${f(body.dietary_restrictions, 400) || "None"}
+- Foods they dislike: ${f(body.dislikes, 400) || "None"}
+- Budget: ${f(body.budget) || "No preference"}
+${f(body.notes, 1000) ? `- Additional notes: ${f(body.notes, 1000)}` : ""}`;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -98,8 +100,7 @@ ${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
     const plan = JSON.parse(text);
     return NextResponse.json({ plan }, { headers: corsHeaders });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[GenerateNutrition] Error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders });
+    console.error("[GenerateNutrition] Error:", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500, headers: corsHeaders });
   }
 }

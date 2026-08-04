@@ -48,3 +48,4 @@ waitlist.json
 
 # Local skills bundle
 .claude/skills/
+.agents/

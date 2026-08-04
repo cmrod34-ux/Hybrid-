@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
+import { rateLimitWindow, capString } from "@/lib/verifyUser";
 
 // ─── Local backup storage ─────────────────────────────────────────────────────
 const DATA_FILE = path.join(process.cwd(), "waitlist.json");
@@ -46,13 +47,12 @@ async function appendToSheet(email: string) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
     range: "waitlist!A:B",
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: {
       values: [[email, new Date().toLocaleString("en-US", { timeZone: "America/New_York" })]],
     },
   });
 
-  console.log(`[Waitlist] Appended to Google Sheet: ${email}`);
 }
 
 // ─── Gmail notification ───────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ async function sendNotification(email: string, total: number) {
   const { GMAIL_USER, GMAIL_APP_PASSWORD, NOTIFY_EMAIL } = process.env;
 
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD || GMAIL_APP_PASSWORD === "your_16_char_app_password_here") {
-    console.log(`[Waitlist] New signup: ${email} — Gmail notification skipped, credentials not set`);
+    console.log("[Waitlist] New signup — Gmail notification skipped, credentials not set");
     return;
   }
 
@@ -80,7 +80,7 @@ async function sendNotification(email: string, total: number) {
         <p style="color:#888;font-size:13px;margin:0 0 24px">Someone just joined the Hybrid waitlist</p>
         <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;margin-bottom:16px;">
           <p style="margin:0 0 4px;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Email</p>
-          <p style="margin:0;font-size:16px;font-weight:600;color:#f0f4ff;">${email}</p>
+          <p style="margin:0;font-size:16px;font-weight:600;color:#f0f4ff;">${email.replace(/[<>&\r\n]/g, "")}</p>
         </div>
         <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;">
           <p style="margin:0 0 4px;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Total signups</p>
@@ -95,8 +95,14 @@ async function sendNotification(email: string, total: number) {
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // Rate limit FIRST — this endpoint triggers email + Sheets writes.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+  if (!rateLimitWindow(`waitlist:${ip}`, 5, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many signups from this connection — please try again later." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
-  const email = body?.email?.trim().toLowerCase();
+  const email = capString(body?.email, 254).toLowerCase();
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });

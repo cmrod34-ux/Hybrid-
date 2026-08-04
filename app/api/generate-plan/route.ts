@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { verifyUser, rateLimit } from "@/lib/verifyUser";
+import { verifyUser, rateLimit, capString } from "@/lib/verifyUser";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,18 +56,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400, headers: corsHeaders });
   }
 
+  // Every field is length-capped before it reaches the prompt — client input
+  // can never inflate token spend.
+  const f = (v: unknown, max = 200) => capString(v, max);
   const userPrompt = `Generate a weekly training plan for this athlete:
-- Type: ${body.athlete_type || "Hybrid athlete"}
-- Goals: ${body.goal || "General fitness"}
-- Experience: ${body.experience || "Intermediate"}
-- Available training days: ${body.training_days || "Monday through Friday"}
-- Training focus: ${body.training_focus || "General"}
-- Available time per session: ${body.available_time || "60 minutes"}
-- Equipment: ${body.equipment || "Full gym"}
-${body.event_name ? `- Upcoming event: ${body.event_name}` : ""}
-${body.event_date ? `- Event date: ${body.event_date}` : ""}
-${body.injuries ? `- Injuries/limitations: ${body.injuries}` : ""}
-${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
+- Type: ${f(body.athlete_type) || "Hybrid athlete"}
+- Goals: ${f(body.goal) || "General fitness"}
+- Experience: ${f(body.experience) || "Intermediate"}
+- Available training days: ${f(body.training_days) || "Monday through Friday"}
+- Training focus: ${f(body.training_focus) || "General"}
+- Available time per session: ${f(body.available_time) || "60 minutes"}
+- Equipment: ${f(body.equipment) || "Full gym"}
+${f(body.event_name) ? `- Upcoming event: ${f(body.event_name)}` : ""}
+${f(body.event_date, 60) ? `- Event date: ${f(body.event_date, 60)}` : ""}
+${f(body.injuries, 500) ? `- Injuries/limitations: ${f(body.injuries, 500)}` : ""}
+${f(body.notes, 1000) ? `- Additional notes: ${f(body.notes, 1000)}` : ""}`;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -88,8 +91,7 @@ ${body.notes ? `- Additional notes: ${body.notes}` : ""}`;
     const plan = JSON.parse(text);
     return NextResponse.json({ plan }, { headers: corsHeaders });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[GeneratePlan] Error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders });
+    console.error("[GeneratePlan] Error:", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500, headers: corsHeaders });
   }
 }

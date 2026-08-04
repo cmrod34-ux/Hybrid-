@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
+import { rateLimitWindow, capString, escapeHtml, sheetSafe } from "@/lib/verifyUser";
 
 const DATA_FILE = path.join(process.cwd(), "feedback.json");
 
@@ -50,20 +51,20 @@ async function appendFeedbackToSheet(entry: FeedbackEntry) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
     range: "feedback !A:M",
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: {
       values: [[
         entry.timestamp,
-        entry.athlete_type,
-        entry.current_apps,
-        entry.frustration,
-        entry.wanted_feature,
-        entry.wanted_feature_other,
-        entry.expectations,
-        entry.website_feedback,
-        entry.one_feature,
-        entry.would_pay,
-        entry.email,
+        sheetSafe(entry.athlete_type),
+        sheetSafe(entry.current_apps),
+        sheetSafe(entry.frustration),
+        sheetSafe(entry.wanted_feature),
+        sheetSafe(entry.wanted_feature_other),
+        sheetSafe(entry.expectations),
+        sheetSafe(entry.website_feedback),
+        sheetSafe(entry.one_feature),
+        sheetSafe(entry.would_pay),
+        sheetSafe(entry.email),
       ]],
     },
   });
@@ -82,7 +83,7 @@ async function sendFeedbackNotification(entry: FeedbackEntry) {
     value
       ? `<div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;margin-bottom:10px;">
            <p style="margin:0 0 4px;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;">${label}</p>
-           <p style="margin:0;font-size:14px;color:#f0f4ff;">${value}</p>
+           <p style="margin:0;font-size:14px;color:#f0f4ff;">${escapeHtml(value)}</p>
          </div>`
       : "";
 
@@ -110,22 +111,28 @@ async function sendFeedbackNotification(entry: FeedbackEntry) {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit FIRST — this endpoint sends email and writes to Sheets.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+  if (!rateLimitWindow(`feedback:${ip}`, 5, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many submissions — please try again later." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const entry: FeedbackEntry = {
     id: crypto.randomUUID(),
     timestamp: new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
-    athlete_type: String(body.athlete_type ?? "").trim(),
-    current_apps: String(body.current_apps ?? "").trim(),
-    frustration: String(body.frustration ?? "").trim(),
-    wanted_feature: String(body.wanted_feature ?? "").trim(),
-    wanted_feature_other: String(body.wanted_feature_other ?? "").trim(),
-    expectations: String(body.expectations ?? "").trim(),
-    website_feedback: String(body.website_feedback ?? "").trim(),
-    one_feature: String(body.one_feature ?? "").trim(),
-    would_pay: String(body.would_pay ?? "").trim(),
-    email: String(body.email ?? "").trim().toLowerCase(),
+    athlete_type: capString(body.athlete_type, 200),
+    current_apps: capString(body.current_apps, 300),
+    frustration: capString(body.frustration, 1000),
+    wanted_feature: capString(body.wanted_feature, 300),
+    wanted_feature_other: capString(body.wanted_feature_other, 500),
+    expectations: capString(body.expectations, 1000),
+    website_feedback: capString(body.website_feedback, 1000),
+    one_feature: capString(body.one_feature, 500),
+    would_pay: capString(body.would_pay, 100),
+    email: capString(body.email, 254).toLowerCase(),
   };
 
   saveFeedbackLocally(entry);

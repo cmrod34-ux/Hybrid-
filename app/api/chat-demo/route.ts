@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { rateLimitWindow } from "@/lib/verifyUser";
+import { rateLimitWindow, sanitizeChatMessages } from "@/lib/verifyUser";
 
 // Unauthenticated AI demo for the hybridfit.org landing page. Deliberately
 // stricter than the app's /api/chat: per-IP limited, no plan context, and
@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const messages = body?.messages;
-
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+  // Strict shape + size validation (plain text only, capped per message).
+  const messages = sanitizeChatMessages(body?.messages);
+  if (!messages) {
     return NextResponse.json({ error: "Invalid messages" }, { status: 400 });
   }
 
@@ -57,14 +57,13 @@ export async function POST(req: NextRequest) {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
       system: SYSTEM_PROMPT,
-      messages: messages.slice(-10),
+      messages,
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     return NextResponse.json({ reply: text });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[ChatDemo] Claude API error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[ChatDemo] Claude API error:", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 }

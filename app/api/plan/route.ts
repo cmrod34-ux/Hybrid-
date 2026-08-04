@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
+import { rateLimitWindow, capString, escapeHtml, sheetSafe } from "@/lib/verifyUser";
 
 const DATA_FILE = path.join(process.cwd(), "plans.json");
 
@@ -49,25 +50,27 @@ async function appendPlanToSheet(entry: PlanEntry) {
 
   const sheets = google.sheets({ version: "v4", auth });
 
+  // RAW + prefix-escaping: user text can never become a live spreadsheet
+  // formula (=IMPORTXML-style exfiltration).
   await sheets.spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID,
     range: "plans !A:N",
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: {
       values: [[
         entry.timestamp,
-        entry.email,
-        entry.experience,
-        entry.goal,
-        entry.training_for,
-        entry.days,
-        entry.running,
-        entry.strength,
-        entry.nutrition,
-        entry.struggle,
-        entry.race,
-        entry.event_name,
-        entry.event_date,
+        sheetSafe(entry.email),
+        sheetSafe(entry.experience),
+        sheetSafe(entry.goal),
+        sheetSafe(entry.training_for),
+        sheetSafe(entry.days),
+        sheetSafe(entry.running),
+        sheetSafe(entry.strength),
+        sheetSafe(entry.nutrition),
+        sheetSafe(entry.struggle),
+        sheetSafe(entry.race),
+        sheetSafe(entry.event_name),
+        sheetSafe(entry.event_date),
       ]],
     },
   });
@@ -82,18 +85,20 @@ async function sendPlanNotification(entry: PlanEntry) {
     auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
   });
 
+  // User-supplied values are HTML-escaped — form input can never inject
+  // markup/links into the notification email.
   const row = (label: string, value: string) =>
     value
       ? `<div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:16px;">
            <p style="margin:0;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;">${label}</p>
-           <p style="margin:0;font-size:13px;font-weight:600;color:#f0f4ff;text-align:right;">${value}</p>
+           <p style="margin:0;font-size:13px;font-weight:600;color:#f0f4ff;text-align:right;">${escapeHtml(value)}</p>
          </div>`
       : "";
 
   await transporter.sendMail({
     from: `"Hybrid Plan Builder" <${GMAIL_USER}>`,
     to: NOTIFY_EMAIL || GMAIL_USER,
-    subject: `🏋️ New plan submission from ${entry.email} · ${entry.timestamp}`,
+    subject: `🏋️ New plan submission from ${entry.email.replace(/[\r\n]/g, "")} · ${entry.timestamp}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#080a0f;color:#f0f4ff;border-radius:12px;">
         <h2 style="color:#00e5ff;margin:0 0 4px">New Plan Builder Submission</h2>
@@ -131,10 +136,17 @@ function appendToWaitlist(email: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit FIRST (this endpoint sends email + writes to Sheets — an
+  // unthrottled bot could bomb the inbox and flood the sheet).
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+  if (!rateLimitWindow(`plan:${ip}`, 5, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many submissions — please try again later." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-  const email = String(body.email ?? "").trim().toLowerCase();
+  const email = capString(body.email, 254).toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
@@ -143,17 +155,17 @@ export async function POST(req: NextRequest) {
     id: crypto.randomUUID(),
     timestamp: new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
     email,
-    experience: String(body.experience ?? "").trim(),
-    goal: String(body.goal ?? "").trim(),
-    training_for: String(body.training_for ?? "").trim(),
-    days: String(body.days ?? "").trim(),
-    running: String(body.running ?? "").trim(),
-    strength: String(body.strength ?? "").trim(),
-    nutrition: String(body.nutrition ?? "").trim(),
-    struggle: String(body.struggle ?? "").trim(),
-    race: String(body.race ?? "").trim(),
-    event_name: String(body.event_name ?? "").trim(),
-    event_date: String(body.event_date ?? "").trim(),
+    experience: capString(body.experience, 200),
+    goal: capString(body.goal, 200),
+    training_for: capString(body.training_for, 200),
+    days: capString(body.days, 100),
+    running: capString(body.running, 200),
+    strength: capString(body.strength, 200),
+    nutrition: capString(body.nutrition, 200),
+    struggle: capString(body.struggle, 500),
+    race: capString(body.race, 50),
+    event_name: capString(body.event_name, 200),
+    event_date: capString(body.event_date, 60),
   };
 
   savePlanLocally(entry);

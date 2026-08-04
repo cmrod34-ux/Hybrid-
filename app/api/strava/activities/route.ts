@@ -65,8 +65,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ activities }, { headers: corsHeaders });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[Strava] activities error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders });
+    console.error("[Strava] activities error:", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500, headers: corsHeaders });
   }
 }

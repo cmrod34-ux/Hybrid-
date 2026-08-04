@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/cesarrodriguez/Desktop/HybridApp && npx expo start --web --port 8082"],
+      "port": 8082
     }
   ]
 }
