@@ -5,11 +5,7 @@ import { verifiedEntitlements } from "@/lib/subscription";
 import {
   CUSTOM_PLAN_PRODUCT,
   COACHING_ENTITLEMENT,
-  decideFulfillment,
-  executeFulfillment,
-  fetchRevokedTxns,
-  pickCustomPlanTransaction,
-  type ExistingRequest,
+  processCoachRequest,
   type RcOneTimePurchase,
   type ServiceType,
 } from "@/lib/coachFulfillment";
@@ -18,17 +14,12 @@ import {
 // 'assessment_needed' row (the database refuses client inserts of paid
 // states; clients may only self-create waitlist rows).
 //
-// Payment is verified with RevenueCat's REST API (secret key) BEFORE any
-// write, and fulfillment is transaction-exact:
-//   - custom_plan → the newest UNUSED, UNREVOKED one-time purchase of
-//     hybrid_custom_plan; its transaction id is stamped onto the request and
-//     a UNIQUE index guarantees one-request-per-transaction, forever.
-//   - coaching   → an ACTIVE "coaching" entitlement; one open coaching
-//     request per subscriber.
-// Replays return the SAME request; a same-service waitlist row is atomically
-// promoted; an open paid request for the other service is a 409; revoked
-// (refunded) transactions never fulfill. The webhook fulfills the same way
-// when the app dies right after the purchase sheet.
+// The full flow lives in lib/coachFulfillment.processCoachRequest (shared
+// with the webhook's fulfillment safety net and exercised end-to-end by the
+// test suite): newest verified non-refunded transaction first — if it
+// already backs one of THIS user's requests (the webhook fulfilled before
+// the app's call landed), that exact request returns with 200. The client
+// is never the payment authority and never supplies a transaction id.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -81,6 +72,12 @@ async function fetchCustomPlanPurchases(userId: string): Promise<{ ok: boolean; 
   }
 }
 
+async function fetchCoachingActive(userId: string): Promise<{ ok: boolean; active: boolean }> {
+  const ents = await verifiedEntitlements(userId);
+  if (ents.status !== "ok") return { ok: false, active: false };
+  return { ok: true, active: ents.active.has(COACHING_ENTITLEMENT) };
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
@@ -107,77 +104,13 @@ export async function POST(req: Request) {
   if (!service) return NextResponse.json({ error: "Invalid service" }, { status: 400, headers: CORS });
   const svc = service;
 
-  const isPrivileged = auth.role === "developer" || auth.role === "admin";
-
   try {
     return await withUserLock(userId, async () => {
-      // The athlete's full request history (any status) — reuse/idempotency
-      // and conflict decisions need completed rows too.
-      const { data: reqRows, error: reqErr } = await admin
-        .from("coach_requests")
-        .select("id, service, status, purchase_transaction_id, user_id")
-        .eq("user_id", userId);
-      if (reqErr) return NextResponse.json({ error: "Lookup failed" }, { status: 500, headers: CORS });
-      const requests = (reqRows ?? []) as ExistingRequest[];
-
-      let txnId: string | null = null;
-      let purchasedAt: string | null = null;
-      let allConsumed = false;
-      let hasCoaching = false;
-
-      if (isPrivileged) {
-        // Developer/admin test mode: payment bypassed. Custom-plan rows get a
-        // synthetic transaction id so the uniqueness machinery still runs;
-        // an existing open request is still reused, never duplicated.
-        hasCoaching = true;
-        if (svc === "custom_plan") {
-          txnId = `dev-${userId}-${Date.now()}`;
-          purchasedAt = new Date().toISOString();
-        }
-      } else if (svc === "coaching") {
-        const ents = await verifiedEntitlements(userId);
-        if (ents.status !== "ok") {
-          return NextResponse.json(
-            { error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." },
-            { status: 503, headers: CORS },
-          );
-        }
-        hasCoaching = ents.active.has(COACHING_ENTITLEMENT);
-      } else {
-        const rc = await fetchCustomPlanPurchases(userId);
-        if (!rc.ok) {
-          return NextResponse.json(
-            { error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." },
-            { status: 503, headers: CORS },
-          );
-        }
-        const revoked = await fetchRevokedTxns(admin, userId);
-        // "Used" means attached to ANY request in the system. Same-user rows
-        // are in `requests`; cross-user reuse is caught by the unique index.
-        const used = new Set(requests.map((r) => r.purchase_transaction_id).filter((t): t is string => !!t));
-        const pick = pickCustomPlanTransaction({ purchases: rc.purchases, revokedTxnIds: revoked, usedTxnIds: used });
-        txnId = pick.txn?.id ?? null;
-        purchasedAt = pick.txn?.purchase_date ?? null;
-        allConsumed = pick.txn === null && pick.hadPurchase;
-      }
-
-      const decision = decideFulfillment({
-        service: svc,
-        requests,
-        txnId,
-        hasCoachingEntitlement: hasCoaching,
-        allTransactionsConsumed: allConsumed,
-      });
-      const outcome = await executeFulfillment(admin, {
-        userId,
-        athleteName,
-        service: svc,
-        decision,
-        txnId,
-        productId: txnId ? (isPrivileged ? "dev" : CUSTOM_PLAN_PRODUCT) : null,
-        purchasedAt,
-      });
-
+      const outcome = await processCoachRequest(
+        admin,
+        { userId, athleteName, service: svc, isPrivileged: auth.role === "developer" || auth.role === "admin" },
+        { fetchCustomPlanPurchases, fetchCoachingActive },
+      );
       if (outcome.httpStatus === 200) {
         return NextResponse.json({ ok: true, request: outcome.request, existing: outcome.existing ?? false }, { headers: CORS });
       }
