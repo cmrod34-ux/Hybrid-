@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * RevenueCat webhook receiver — keeps Hybrid's server-side view of
@@ -11,17 +12,19 @@ import { NextRequest, NextResponse } from "next/server";
  * SECURITY: RevenueCat sends a fixed Authorization header configured in
  * their dashboard — it must match REVENUECAT_WEBHOOK_AUTH (server env only).
  * Requests without it are rejected; the route is disabled (503) until the
- * secret is configured. IDEMPOTENT: events carry a unique id; re-delivered
- * events are acknowledged without reprocessing, so duplicates can never
- * corrupt subscription state.
+ * secret is configured. IDEMPOTENT: every event id is recorded in the
+ * billing_events table (PRIMARY KEY event_id, service-role-only access,
+ * created by coaching_v2_security.sql); a re-delivered event hits the unique
+ * constraint and is acknowledged without reprocessing — durable across
+ * instances and restarts, no in-memory map.
  */
 
-// In-memory idempotency window (per instance). RevenueCat retries within
-// minutes, which this comfortably covers; processing is also intrinsically
-// idempotent (cache invalidation), so a cold instance re-processing an old
-// event is harmless by design.
-const seenEvents = new Map<string, number>();
-const SEEN_TTL_MS = 60 * 60 * 1000;
+function adminClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
 
 // RevenueCat event types we acknowledge explicitly (all others are accepted
 // and logged — unknown types must never bounce the webhook).
@@ -58,13 +61,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid event" }, { status: 400 });
   }
 
-  // Idempotency: acknowledge duplicates without reprocessing.
-  const now = Date.now();
-  for (const [id, at] of seenEvents) if (now - at > SEEN_TTL_MS) seenEvents.delete(id);
-  if (seenEvents.has(event.id)) {
-    return NextResponse.json({ ok: true, duplicate: true });
+  // PERSISTENT idempotency: the insert either claims this event id or hits
+  // the primary-key constraint (23505) — in which case it was already
+  // processed (possibly by another instance) and is acknowledged untouched.
+  const admin = adminClient();
+  if (admin) {
+    const { error: insErr } = await admin.from("billing_events").insert({
+      event_id: event.id,
+      event_type: event.type,
+      app_user_id: event.app_user_id ?? null,
+    });
+    if (insErr) {
+      if (insErr.code === "23505") {
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+      // Table missing (migration not applied) or transient DB error: continue —
+      // processing is cache invalidation, which is intrinsically idempotent —
+      // but say so in the log rather than pretending durability exists.
+      console.warn(`[RC webhook] idempotency record failed (${insErr.code ?? "?"}): processing anyway`);
+    }
+  } else {
+    console.warn("[RC webhook] SUPABASE_SERVICE_ROLE_KEY not set — no persistent idempotency record");
   }
-  seenEvents.set(event.id, now);
 
   // Processing: invalidate this user's cached plan so the next verified
   // check reflects the new state immediately (purchase, cancel, refund…).

@@ -1,18 +1,29 @@
 // Server-side subscription verification — the TRUSTED source of paid status.
 //
 // The mobile client's plan state gates UI only. Anything that costs money
-// server-side (AI calls) re-verifies here against RevenueCat's REST API using
-// the SECRET key (server env only, never shipped to a client). A user editing
-// client state can never unlock paid server functionality.
+// server-side (AI calls, coaching requests) re-verifies here against
+// RevenueCat's REST API using the SECRET key (server env only, never shipped
+// to a client). A user editing client state can never unlock paid server
+// functionality.
 //
-// ROLLOUT-SAFE: until REVENUECAT_SECRET_KEY is configured, plan() returns
-// "unknown" and callers keep today's behavior (single shared limit for all
-// authenticated users) — nothing breaks before the provider is set up.
+// ROLLOUT-SAFE: until REVENUECAT_SECRET_KEY is configured, results report
+// "unconfigured" and callers keep pre-subscription behavior. Once configured,
+// a provider ERROR fails toward the FREE tier — an outage must never grant
+// higher limits or paid features.
 
 export type ServerPlan = "free" | "pro" | "unknown";
 
+export interface VerifiedEntitlements {
+  status: "ok" | "unconfigured" | "error";
+  /** Active entitlement ids (e.g. "pro", "pro_plus", "coaching"). */
+  active: ReadonlySet<string>;
+  /** One-time (non-subscription) product ids ever purchased (e.g. the
+   *  custom-plan product) — RevenueCat lists these separately. */
+  oneTimeProducts: ReadonlySet<string>;
+}
+
 interface CacheEntry {
-  plan: ServerPlan;
+  ents: VerifiedEntitlements;
   at: number;
 }
 
@@ -21,33 +32,56 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 5 * 60 * 1000;
 
-/** Look up the verified plan for a Supabase user id. */
-export async function verifiedPlan(userId: string | null): Promise<ServerPlan> {
+const EMPTY: ReadonlySet<string> = new Set();
+
+/** Entitlement-level verification for a Supabase user id. Distinguishes the
+ *  individual entitlements — "coaching" is not "pro". */
+export async function verifiedEntitlements(userId: string | null): Promise<VerifiedEntitlements> {
   const key = process.env.REVENUECAT_SECRET_KEY;
-  if (!key || !userId) return "unknown";
+  if (!key || !userId) return { status: "unconfigured", active: EMPTY, oneTimeProducts: EMPTY };
 
   const hit = cache.get(userId);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.plan;
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.ents;
 
   try {
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, {
       headers: { Authorization: `Bearer ${key}` },
-      // RevenueCat creates the subscriber on first read; treat any failure as
-      // free-tier (fail toward the cheaper limit, never toward free money).
     });
-    if (!res.ok) return "unknown";
-    const data = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
-    const ents = data.subscriber?.entitlements ?? {};
-    const active = Object.entries(ents).some(([, e]) => e.expires_date === null || Date.parse(e.expires_date) > Date.now());
-    const plan: ServerPlan = active ? "pro" : "free";
-    cache.set(userId, { plan, at: Date.now() });
-    return plan;
+    if (!res.ok) return { status: "error", active: EMPTY, oneTimeProducts: EMPTY };
+    const data = (await res.json()) as {
+      subscriber?: {
+        entitlements?: Record<string, { expires_date: string | null }>;
+        non_subscriptions?: Record<string, unknown[]>;
+      };
+    };
+    const active = new Set<string>();
+    for (const [id, e] of Object.entries(data.subscriber?.entitlements ?? {})) {
+      if (e.expires_date === null || Date.parse(e.expires_date) > Date.now()) active.add(id);
+    }
+    const oneTime = new Set<string>();
+    for (const [productId, purchases] of Object.entries(data.subscriber?.non_subscriptions ?? {})) {
+      if (Array.isArray(purchases) && purchases.length > 0) oneTime.add(productId);
+    }
+    const ents: VerifiedEntitlements = { status: "ok", active, oneTimeProducts: oneTime };
+    cache.set(userId, { ents, at: Date.now() });
+    return ents;
   } catch {
-    return "unknown";
+    return { status: "error", active: EMPTY, oneTimeProducts: EMPTY };
   }
 }
 
-/** Drop a user's cached plan (called by the RevenueCat webhook so upgrades,
+/** Coarse plan for rate-limit tiers. Any active entitlement grants paid chat
+ *  limits (coaching subscribers get at least Pro's). Provider ERRORS return
+ *  "free" — never a higher limit than an unpaid user. "unknown" appears only
+ *  while the provider is UNCONFIGURED (pre-launch rollout). */
+export async function verifiedPlan(userId: string | null): Promise<ServerPlan> {
+  const ents = await verifiedEntitlements(userId);
+  if (ents.status === "unconfigured") return "unknown";
+  if (ents.status === "error") return "free";
+  return ents.active.size > 0 ? "pro" : "free";
+}
+
+/** Drop a user's cached state (called by the RevenueCat webhook so upgrades,
  *  cancellations, and refunds take effect immediately). */
 export function invalidateSubscriptionCache(userId: string): void {
   cache.delete(userId);
