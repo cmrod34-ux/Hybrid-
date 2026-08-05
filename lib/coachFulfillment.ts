@@ -55,7 +55,8 @@ export type FulfillmentDecision =
   | { action: "conflict"; reason: string } // 409 — incompatible active request
   | { action: "reject"; reason: string }; // 402 — no valid, unused payment
 
-const OPEN_STATUSES = new Set(["assessment_needed", "submitted", "under_review", "building", "ready", "revision_requested", "active"]);
+const OPEN_STATUS_LIST = ["assessment_needed", "submitted", "under_review", "building", "ready", "revision_requested", "active"] as const;
+const OPEN_STATUSES = new Set<string>(OPEN_STATUS_LIST);
 
 /** Decide how a verified payment maps onto the athlete's existing requests.
  *  `txnId` is REQUIRED for custom_plan (the chosen unused transaction, or
@@ -174,7 +175,7 @@ export async function executeFulfillment(
       .eq("status", "waitlist") // atomic: only an actual waitlist row converts
       .select()
       .single();
-    if (error?.code === "23505") return resolveTxnRace(admin, userId, txnId);
+    if (error?.code === "23505") return resolveUniqueRace(admin, userId, service, txnId);
     if (error || !data) return { httpStatus: 500, error: "Waitlist promotion failed" };
     return { httpStatus: 200, request: data };
   }
@@ -185,33 +186,68 @@ export async function executeFulfillment(
     .insert({ user_id: userId, athlete_name: opts.athleteName, service, status: "assessment_needed", ...stamp })
     .select()
     .single();
-  if (error?.code === "23505") return resolveTxnRace(admin, userId, txnId);
+  if (error?.code === "23505") return resolveUniqueRace(admin, userId, service, txnId);
   if (error || !data) return { httpStatus: 500, error: "Server error" };
   return { httpStatus: 200, request: data };
 }
 
-/** The unique index fired: this transaction already backs some request. */
-async function resolveTxnRace(admin: SupabaseClient, userId: string, txnId: string | null): Promise<FulfillmentOutcome> {
-  if (!txnId) return { httpStatus: 500, error: "Server error" };
-  const { data } = await admin
+/** A unique index fired mid-write. Two possible arbiters:
+ *   - purchase_transaction_id: the transaction already backs some request —
+ *     the same user gets THAT request; another user gets 409.
+ *   - open-coaching-per-user: a concurrent webhook/API call just created the
+ *     user's open coaching request — return it with existing: true (never a
+ *     500, and by construction never another user's row). */
+async function resolveUniqueRace(
+  admin: SupabaseClient,
+  userId: string,
+  service: ServiceType,
+  txnId: string | null,
+): Promise<FulfillmentOutcome> {
+  if (txnId) {
+    const { data } = await admin
+      .from("coach_requests")
+      .select("*")
+      .eq("purchase_transaction_id", txnId)
+      .single();
+    const holder = data as { user_id?: string } | null;
+    if (holder && holder.user_id === userId) return { httpStatus: 200, request: holder, existing: true };
+    if (holder) return { httpStatus: 409, error: "This purchase has already been used on another account." };
+  }
+  // Open-coaching uniqueness (or a txn lookup that found nothing): the
+  // winning row is this user's open request for the same service.
+  const { data: open } = await admin
     .from("coach_requests")
     .select("*")
-    .eq("purchase_transaction_id", txnId)
+    .eq("user_id", userId)
+    .eq("service", service)
+    .in("status", [...OPEN_STATUS_LIST])
     .single();
-  const holder = data as { user_id?: string } | null;
-  if (holder && holder.user_id === userId) return { httpStatus: 200, request: holder, existing: true };
-  return { httpStatus: 409, error: "This purchase has already been used on another account." };
+  if (open) return { httpStatus: 200, request: open, existing: true };
+  return { httpStatus: 500, error: "Server error" };
+}
+
+/** Thrown when the refund ledger cannot be consulted — callers must FAIL
+ *  CLOSED (retryable 503/500), never fulfill on an unreadable ledger. */
+export class RevocationCheckError extends Error {
+  constructor() {
+    super("Refund ledger unavailable");
+    this.name = "RevocationCheckError";
+  }
 }
 
 /** Revoked (refunded/cancelled) transaction ids for a user, from the durable
- *  billing_events ledger the webhook writes. */
+ *  billing_events ledger the webhook writes. An EMPTY result means "no
+ *  refunds"; a query ERROR means "unknown" and throws — treating an
+ *  unreadable ledger as refund-free would let a refunded purchase fulfill
+ *  during a database blip. */
 export async function fetchRevokedTxns(admin: SupabaseClient, appUserId: string): Promise<Set<string>> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("billing_events")
     .select("transaction_id")
     .eq("app_user_id", appUserId)
     .in("event_type", ["CANCELLATION", "EXPIRATION"])
     .not("transaction_id", "is", null);
+  if (error) throw new RevocationCheckError();
   return new Set(((data ?? []) as { transaction_id: string }[]).map((r) => r.transaction_id));
 }
 
@@ -267,7 +303,14 @@ export async function processCoachRequest(
     if (!rc.ok) {
       return { httpStatus: 503, error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." };
     }
-    const revoked = await fetchRevokedTxns(admin, userId);
+    // FAIL CLOSED: an unreadable refund ledger must never read as "no
+    // refunds" — no request is created, the client retries.
+    let revoked: Set<string>;
+    try {
+      revoked = await fetchRevokedTxns(admin, userId);
+    } catch {
+      return { httpStatus: 503, error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." };
+    }
     const pick = pickCustomPlanTransaction({ purchases: rc.purchases, revokedTxnIds: revoked });
     txnId = pick.txn?.id ?? null;
     purchasedAt = pick.txn?.purchase_date ?? null;
