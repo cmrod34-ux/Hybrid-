@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/tests/first-plan-server-test.ts"
+    "test": "tsx scripts/tests/first-plan-server-test.ts && tsx scripts/tests/coach-fulfillment-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

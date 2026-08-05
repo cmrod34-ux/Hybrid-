@@ -2,20 +2,33 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyUser, rateLimitWindow, capString } from "@/lib/verifyUser";
 import { verifiedEntitlements } from "@/lib/subscription";
+import {
+  CUSTOM_PLAN_PRODUCT,
+  COACHING_ENTITLEMENT,
+  decideFulfillment,
+  executeFulfillment,
+  fetchRevokedTxns,
+  pickCustomPlanTransaction,
+  type ExistingRequest,
+  type RcOneTimePurchase,
+  type ServiceType,
+} from "@/lib/coachFulfillment";
 
-// Server-side creation of PAID coaching requests.
+// Server-side creation of PAID coaching requests — the only path to an
+// 'assessment_needed' row (the database refuses client inserts of paid
+// states; clients may only self-create waitlist rows).
 //
-// The database (coaching_v2_security.sql) forbids clients from inserting
-// paid-entry rows — athletes can only self-create WAITLIST rows. This route
-// is the only path to an 'assessment_needed' request, and it verifies the
-// payment with RevenueCat's REST API (secret key) BEFORE inserting with the
-// service role:
-//   - coaching     → an ACTIVE "coaching" entitlement
-//   - custom_plan  → the one-time custom-plan product purchase
-// A server-granted developer/admin role bypasses payment for testing.
-//
-// Unconfigured (missing service-role key): 503 — the client explains that
-// purchases aren't live yet. Provider errors NEVER create a request.
+// Payment is verified with RevenueCat's REST API (secret key) BEFORE any
+// write, and fulfillment is transaction-exact:
+//   - custom_plan → the newest UNUSED, UNREVOKED one-time purchase of
+//     hybrid_custom_plan; its transaction id is stamped onto the request and
+//     a UNIQUE index guarantees one-request-per-transaction, forever.
+//   - coaching   → an ACTIVE "coaching" entitlement; one open coaching
+//     request per subscriber.
+// Replays return the SAME request; a same-service waitlist row is atomically
+// promoted; an open paid request for the other service is a 409; revoked
+// (refunded) transactions never fulfill. The webhook fulfills the same way
+// when the app dies right after the purchase sheet.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,15 +36,49 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// Product/entitlement ids — mirrors HybridApp/lib/pricing.ts.
-const CUSTOM_PLAN_PRODUCT = "hybrid_custom_plan";
-const COACHING_ENTITLEMENT = "coaching";
-
 function adminClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+// Serialize per user within this instance (the txn unique index remains the
+// cross-instance arbiter).
+const userLocks = new Map<string, Promise<void>>();
+function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = userLocks.get(userId) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail: Promise<void> = run.then(
+    () => undefined,
+    () => undefined,
+  ).then(() => {
+    if (userLocks.get(userId) === tail) userLocks.delete(userId);
+  });
+  userLocks.set(userId, tail);
+  return run;
+}
+
+/** RevenueCat one-time purchases of the custom-plan product for a user. */
+async function fetchCustomPlanPurchases(userId: string): Promise<{ ok: boolean; purchases: RcOneTimePurchase[] }> {
+  const key = process.env.REVENUECAT_SECRET_KEY;
+  if (!key) return { ok: false, purchases: [] };
+  try {
+    const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return { ok: false, purchases: [] };
+    const data = (await res.json()) as {
+      subscriber?: { non_subscriptions?: Record<string, { id?: string; purchase_date?: string }[]> };
+    };
+    const raw = data.subscriber?.non_subscriptions?.[CUSTOM_PLAN_PRODUCT] ?? [];
+    const purchases = raw
+      .filter((p) => typeof p.id === "string" && p.id.length > 0)
+      .map((p) => ({ id: p.id as string, purchase_date: p.purchase_date ?? new Date(0).toISOString() }));
+    return { ok: true, purchases };
+  } catch {
+    return { ok: false, purchases: [] };
+  }
 }
 
 export async function OPTIONS() {
@@ -41,13 +88,14 @@ export async function OPTIONS() {
 export async function POST(req: Request) {
   const auth = await verifyUser(req.headers.get("authorization"));
   if (!auth.ok || !auth.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS });
-  if (!rateLimitWindow(`coachreq:${auth.userId}`, 5, 60_000)) {
+  const userId = auth.userId;
+  if (!rateLimitWindow(`coachreq:${userId}`, 5, 60_000)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: CORS });
   }
   const admin = adminClient();
   if (!admin) return NextResponse.json({ configured: false }, { status: 503, headers: CORS });
 
-  let service: string | null = null;
+  let service: ServiceType | null = null;
   let athleteName = "";
   try {
     const body = (await req.json()) as { service?: unknown; athleteName?: unknown };
@@ -57,47 +105,84 @@ export async function POST(req: Request) {
     service = null;
   }
   if (!service) return NextResponse.json({ error: "Invalid service" }, { status: 400, headers: CORS });
+  const svc = service;
 
-  // Payment verification — the mobile client is never the authority.
   const isPrivileged = auth.role === "developer" || auth.role === "admin";
-  if (!isPrivileged) {
-    const ents = await verifiedEntitlements(auth.userId);
-    if (ents.status !== "ok") {
-      return NextResponse.json(
-        { error: "Payment verification is unavailable right now — you have not been charged twice; try again shortly." },
-        { status: 503, headers: CORS },
-      );
-    }
-    const paid =
-      service === "coaching" ? ents.active.has(COACHING_ENTITLEMENT) : ents.oneTimeProducts.has(CUSTOM_PLAN_PRODUCT);
-    if (!paid) {
-      return NextResponse.json({ error: "No verified purchase found for this service." }, { status: 402, headers: CORS });
-    }
-  }
 
   try {
-    // One open request at a time — idempotent against double-taps/replays.
-    const { data: existing, error: exErr } = await admin
-      .from("coach_requests")
-      .select("id,status,service")
-      .eq("user_id", auth.userId)
-      .not("status", "in", "(completed)")
-      .limit(1);
-    if (exErr) return NextResponse.json({ error: "Lookup failed" }, { status: 500, headers: CORS });
-    if (existing && existing.length > 0) {
-      return NextResponse.json({ ok: true, request: existing[0], existing: true }, { headers: CORS });
-    }
+    return await withUserLock(userId, async () => {
+      // The athlete's full request history (any status) — reuse/idempotency
+      // and conflict decisions need completed rows too.
+      const { data: reqRows, error: reqErr } = await admin
+        .from("coach_requests")
+        .select("id, service, status, purchase_transaction_id, user_id")
+        .eq("user_id", userId);
+      if (reqErr) return NextResponse.json({ error: "Lookup failed" }, { status: 500, headers: CORS });
+      const requests = (reqRows ?? []) as ExistingRequest[];
 
-    const { data, error } = await admin
-      .from("coach_requests")
-      .insert({ user_id: auth.userId, athlete_name: athleteName, service, status: "assessment_needed" })
-      .select()
-      .single();
-    if (error) {
-      console.error("[coach-request] insert failed:", error.message);
-      return NextResponse.json({ error: "Server error" }, { status: 500, headers: CORS });
-    }
-    return NextResponse.json({ ok: true, request: data }, { headers: CORS });
+      let txnId: string | null = null;
+      let purchasedAt: string | null = null;
+      let allConsumed = false;
+      let hasCoaching = false;
+
+      if (isPrivileged) {
+        // Developer/admin test mode: payment bypassed. Custom-plan rows get a
+        // synthetic transaction id so the uniqueness machinery still runs;
+        // an existing open request is still reused, never duplicated.
+        hasCoaching = true;
+        if (svc === "custom_plan") {
+          txnId = `dev-${userId}-${Date.now()}`;
+          purchasedAt = new Date().toISOString();
+        }
+      } else if (svc === "coaching") {
+        const ents = await verifiedEntitlements(userId);
+        if (ents.status !== "ok") {
+          return NextResponse.json(
+            { error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." },
+            { status: 503, headers: CORS },
+          );
+        }
+        hasCoaching = ents.active.has(COACHING_ENTITLEMENT);
+      } else {
+        const rc = await fetchCustomPlanPurchases(userId);
+        if (!rc.ok) {
+          return NextResponse.json(
+            { error: "Payment verification is unavailable right now — try again shortly. You have not been charged twice." },
+            { status: 503, headers: CORS },
+          );
+        }
+        const revoked = await fetchRevokedTxns(admin, userId);
+        // "Used" means attached to ANY request in the system. Same-user rows
+        // are in `requests`; cross-user reuse is caught by the unique index.
+        const used = new Set(requests.map((r) => r.purchase_transaction_id).filter((t): t is string => !!t));
+        const pick = pickCustomPlanTransaction({ purchases: rc.purchases, revokedTxnIds: revoked, usedTxnIds: used });
+        txnId = pick.txn?.id ?? null;
+        purchasedAt = pick.txn?.purchase_date ?? null;
+        allConsumed = pick.txn === null && pick.hadPurchase;
+      }
+
+      const decision = decideFulfillment({
+        service: svc,
+        requests,
+        txnId,
+        hasCoachingEntitlement: hasCoaching,
+        allTransactionsConsumed: allConsumed,
+      });
+      const outcome = await executeFulfillment(admin, {
+        userId,
+        athleteName,
+        service: svc,
+        decision,
+        txnId,
+        productId: txnId ? (isPrivileged ? "dev" : CUSTOM_PLAN_PRODUCT) : null,
+        purchasedAt,
+      });
+
+      if (outcome.httpStatus === 200) {
+        return NextResponse.json({ ok: true, request: outcome.request, existing: outcome.existing ?? false }, { headers: CORS });
+      }
+      return NextResponse.json({ error: outcome.error ?? "Server error" }, { status: outcome.httpStatus, headers: CORS });
+    });
   } catch (e) {
     console.error("[coach-request] error:", e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: "Server error" }, { status: 500, headers: CORS });
