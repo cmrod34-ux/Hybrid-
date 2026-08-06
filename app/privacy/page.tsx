@@ -86,8 +86,9 @@ export default function PrivacyPage() {
           <p>We use Supabase for authentication and for the small amount of data we do keep server-side.</p>
           <p>
             <strong className="text-white/80">Your account:</strong> your email address and a password
-            managed by Supabase&rsquo;s authentication service. Sign-up asks for an email and a password and
-            nothing else. We also store a role flag for coach/admin accounts and a record of whether you have
+            managed by Supabase&rsquo;s authentication service. Sign-up asks for an email and a password, and asks you
+            to confirm that you are at least 13 years old. We record that you confirmed it; we do not ask for or
+            store your date of birth. We also store a role flag for coach/admin accounts and a record of whether you have
             used your first free plan.
           </p>
           <p>
@@ -213,7 +214,7 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-5 space-y-2">
             <li>Your authentication record is deleted — email, password, and account metadata.</li>
             <li>Your coaching requests, intake, coach-written plans, coach messages, and the coach edit trail are deleted along with it.</li>
-            <li>The app removes your locally stored plan, workout logs, clean days, nutrition preferences, fueling profile, first name, adjustments, and counters from that device, and clears your Strava tokens from that device&rsquo;s Keychain.</li>
+            <li>The app removes <strong className="text-white/80">that account&rsquo;s</strong> locally stored plan, workout logs, clean days, nutrition preferences, fueling profile, first name, adjustments, counters and first-plan notice from that device, and clears that account&rsquo;s Strava tokens from the device Keychain. If someone else has used the app on the same device, their cached data is deliberately left alone — deleting your account does not wipe theirs.</li>
           </ul>
           <p>
             <strong className="text-white/80">What deletion does not do, honestly stated:</strong>
@@ -229,7 +230,7 @@ export default function PrivacyPage() {
 
         <Section title="Exporting your data">
           <p>
-            Profile → Export My Data produces a JSON file and hands it to the iOS share sheet. Be aware of its
+            Profile → Export Device Data produces a JSON file and hands it to the iOS share sheet. Be aware of its
             limits: <strong className="text-white/80">it exports the data stored on that device only</strong>{" "}
             — your plan, workouts, nutrition, fueling, profile, and adjustments — plus your account email and
             the export timestamp. It does <strong className="text-white/80">not</strong> include your Supabase
@@ -275,9 +276,19 @@ export default function PrivacyPage() {
         <Section title="Age requirement">
           <p>
             Hybrid is for people <strong className="text-white/80">13 and older</strong>. We do not knowingly
-            collect personal information from anyone under 13. To be transparent: this is a policy, not a
-            technical control — sign-up asks only for an email and a password, and we do not currently verify
-            age. If you believe someone under 13 has created an account, contact us and we will delete it.
+            collect personal information from anyone under 13.
+          </p>
+          <p>
+            Two controls back this up. Creating an account requires you to tick a confirmation that you are at
+            least 13 — it is off by default and sign-up will not proceed without it. Separately, when you set up
+            training or nutrition guidance the app may ask for your age, because calorie and training
+            calculations depend on it; if an age under 13 is entered, the app refuses to generate that guidance
+            and explains why, and points you to account deletion.
+          </p>
+          <p>
+            To be transparent about the limits: these are self-declared. We do not ask for a date of birth and
+            we do not verify age against any document. If you believe someone under 13 has created an account,
+            contact us and we will delete it.
           </p>
         </Section>
 
