@@ -87,8 +87,9 @@ export default function PrivacyPage() {
           <p>
             <strong className="text-white/80">Your account:</strong> your email address and a password
             managed by Supabase&rsquo;s authentication service. Sign-up asks for an email and a password, and asks you
-            to confirm that you are at least 13 years old. We record that you confirmed it; we do not ask for or
-            store your date of birth. We also store a role flag for coach/admin accounts and a record of whether you have
+            to confirm that you are at least 13 years old. That confirmation is a gate, not a data point:
+            we do not store a separate record of it, and we never ask for your date of birth. Only your email
+            and password are sent to us at sign-up. We also store a role flag for coach/admin accounts and a record of whether you have
             used your first free plan.
           </p>
           <p>
@@ -223,7 +224,7 @@ export default function PrivacyPage() {
             <li><strong className="text-white/80">Billing event records are kept.</strong> We detach your account identifier from them — it is set to null so the rows are no longer linked to you — but the event ID and type, transaction and product IDs, cancellation reason, timestamps, and any error text remain, so that we retain a payment and refund history. This is deliberate.</li>
             <li>It does not revoke Hybrid at Strava. Do that in your Strava settings.</li>
             <li>It only clears the device you ran it on. If you were signed in on another phone, that phone&rsquo;s local data stays until you delete the app there.</li>
-            <li>Two small local values are not covered by the per-account cleanup and may remain on the device: a developer preview-tier setting and a &ldquo;notice dismissed&rdquo; flag. Neither contains personal information.</li>
+            <li>Local cleanup is scoped to the account being deleted, deliberately. If someone else has used Hybrid on the same phone, their cached plan, logs and settings are left alone — deleting your account does not wipe theirs. The only value that survives for everyone is a developer preview-tier setting, which belongs to the device and contains no personal information.</li>
             <li>It does not retroactively delete anything already sent to Anthropic, Strava, Apple, or RevenueCat. We do not call a deletion API on those services; you would need to use their own controls.</li>
           </ul>
         </Section>
